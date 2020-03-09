@@ -1,4 +1,8 @@
 EXEC      = minisat
 DEPDIR    = mtl utils
-
-include $(MROOT)/mtl/template.mk
+CPPFLAGS:=-std=c++17
+TEST_WRAP:assign_wrap_test.o
+	g++  $^ -o $@
+clean:
+	rm *.o
+#include $(MROOT)/mtl/template.mk

@@ -22,7 +22,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
-
+#include "core/sim_api.h"
+#include "core/sim_control.h"
+#include "acc.h"
 using namespace Minisat;
 
 //=================================================================================================
@@ -448,6 +450,8 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |________________________________________________________________________________________________@*/
 CRef Solver::propagate()
 {
+    SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
+    
     CRef    confl     = CRef_Undef;
     int     num_props = 0;
     watches.cleanAll();
@@ -504,6 +508,8 @@ CRef Solver::propagate()
     propagations += num_props;
     simpDB_props -= num_props;
 
+    SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_END_B);
+    
     return confl;
 }
 
