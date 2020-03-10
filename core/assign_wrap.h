@@ -36,10 +36,12 @@ private:
     Time_t wather_list_finish_time;
     Time_t clause_finish_time;
     Size_t watcher_size;
-    std::shared_ptr<assign_wrap<T, Time_t, Size_t>> Depends;
+    std::pair<int, std::shared_ptr<assign_wrap<T, Time_t, Size_t>>> Depends;
     std::vector<std::pair<int, T *>> pushed_other_list_items;
     std::vector<std::pair<int, Clause_t>> modified_clause_list_items;
+    std::map<int, std::weak_ptr<assign_wrap<T, Time_t, Size_t, Clause_t>>> generated_assignments; // must make the ptr weak here to break circular;
     Size_t clause_size;
+    
     int level;
 };
 

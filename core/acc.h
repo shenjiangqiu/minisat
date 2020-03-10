@@ -93,8 +93,8 @@ public:
 
     int start_sim()
     {
-        for(auto && assignment:  value_queue){
-            
+        for (auto &&assignment : value_queue)
+        {
         }
     }
     void push_to_trail(std::shared_ptr<T> value)
@@ -130,5 +130,88 @@ std::shared_ptr<ACC<T>> create_acc()
 {
     return std::make_shared<ACC<T>>();
 }
+
+template <typename V>
+class task
+{
+public:
+    V value;
+
+    int start;
+    int end;
+    int remaining;
+    int total;
+    bool is_first;
+};
+template <typename V>
+class unit
+{
+public:
+    void push_task(task<V> &task,int time)
+    {  
+        task.start = time;
+        task.end = time+ task.is_first ?cache_line_hit_latency:cache_line_miss_latency;
+        next_run_time=task.end<next_run_time ? task.end : next_run_time;
+        
+        task_queue.push(task);
+        
+        
+
+    }
+
+    void run(int time)
+    {
+        auto &task=task_queue.front();
+        auto &value=task.value;
+        auto &generated=
+    }
+    bool need_run(int time)
+    {
+        return next_run_time <= time;
+    }
+    int get_next_run_time() { return next_run_time; }
+    int get_remaining() { return remaining; }
+    int get_working() { return working; }
+
+private:
+    int next_run_time;
+    std::queue<task<V>> task_queue;
+    int total_size;
+    int remaining;
+    int working;
+    int cache_line_hit_latency;
+    int cache_line_miss_latency; 
+};
+template <typename T>
+class watcher_list_process_unit
+{
+
+public:
+    void run(int time)
+    {
+        for (auto &&unit : m_units)
+        {
+            if (unit.need_run(time))
+            {
+                unit.run(time);
+            }
+        }
+    }
+    bool need_run(int time)
+    {
+        return next_run_time <= time;
+    }
+    void push_task(const task<T> &mtask)
+    {
+        mtasks.push(mtask);
+    }
+
+private:
+    std::queue<std::shared_ptr<task<T>>> mtasks;
+    int next_run_time;
+    int total_process_size;
+    int remaining_unit;
+    std::vector<unit> m_units;
+};
 
 #endif
