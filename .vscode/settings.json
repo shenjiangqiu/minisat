@@ -1,6 +1,22 @@
 {
     "files.associations": {
+        "*.cu": "cpp",
         "cstdlib": "cpp",
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "*.tcc": "cpp",
+        "optional": "cpp",
+        "istream": "cpp",
+        "ostream": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "regex": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "variant": "cpp",
+        "iomanip": "cpp",
+        "exception": "cpp",
+        "new": "cpp"
     }
 }

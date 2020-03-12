@@ -9,7 +9,7 @@ public:
     assign_wrap() = delete;
     assign_wrap(T value, Time_t time,
                 Size_t watcher_size,
-                std::shared_ptr<assign_wrap<T, Time_t, Size_t>> depend = nullptr,
+                std::pair<int, std::shared_ptr<assign_wrap<T, Time_t, Size_t>>> depend,
                 int level = 0) : value(value),
                                  start_time(time),
                                  watcher_size(watcher_size),
@@ -41,10 +41,14 @@ private:
     std::vector<std::pair<int, Clause_t>> modified_clause_list_items;
     std::map<int, std::weak_ptr<assign_wrap<T, Time_t, Size_t, Clause_t>>> generated_assignments; // must make the ptr weak here to break circular;
     Size_t clause_size;
-    
+
     int level;
 };
-
+template <typename SharedPointType>
+struct GetType
+{
+    typedef typename SharedPointType::element_type type;
+};
 class assign_wrap_factory
 {
 public:
@@ -52,7 +56,7 @@ public:
     static std::shared_ptr<assign_wrap<T, Time_t, Size_t>> create(T value,
                                                                   Time_t start_time,
                                                                   Size_t watcher_size,
-                                                                  std::shared_ptr<assign_wrap<T, Time_t, Size_t>> depend = nullptr,
+                                                                  std::pair<int, std::shared_ptr<assign_wrap<T, Time_t, Size_t>>> depend,
                                                                   int level = 0)
     {
         return std::make_shared<assign_wrap<T, Time_t, Size_t>>(value, start_time, watcher_size, depend, level);
