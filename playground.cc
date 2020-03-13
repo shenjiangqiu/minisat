@@ -1,5 +1,6 @@
 #include <queue>
 #include <iostream>
+#include <memory>
 using namespace std;
 struct element
 {
@@ -25,4 +26,7 @@ int main(int argc, char **argv)
         queue.pop();
     }
     std::pair<int,float> a={1,2.9};
+
+    int a=0;
+    auto wa=std::weak_ptr<int>(&a);
 }

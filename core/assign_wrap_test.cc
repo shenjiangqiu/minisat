@@ -1,42 +1,44 @@
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 #include "assign_wrap.h"
-//#include "acc.h"
+#include "acc.h"
 #include "event_queue.h"
 #include "event.h"
 #include <iostream>
-/*
-TEST_CASE("main test"){
-        auto w1=assign_wrap_factory::create(1,0,100);
-        w1->add_modified_list(10,1);
-        w1->add_modified_list(11,2);
-        w1->add_modified_list(12,3);
-        w1->add_modified_list(13,4);
-        w1->add_modified_list(14,5);
+std::shared_ptr<assign_wrap<int, int, int, int>> shared_null;
+TEST_CASE("main test")
+{
+    assign_wrap_factory af;
+    //std::shared_ptr<assign_wrap<int, int, int, int>> shared_null;
+    auto w1 = af.create(1, 100, -1, shared_null);
+    w1->add_modified_list(10, 1);
+    w1->add_modified_list(11, 2);
+    w1->add_modified_list(12, 3);
+    w1->add_modified_list(13, 4);
+    w1->add_modified_list(14, 5);
 
-        const auto &list=w1->get_modified();
-        int i=10;
-        int j=1;
-        for(const auto &elem:list){
-            REQUIRE(elem==std::make_pair(i++,j++));
-        }
-        SECTION("acc"){
-            auto acc=create_acc<std::remove_reference<decltype(*w1)>::type>();
-            acc->push_to_trail(w1);
-            auto w2=assign_wrap_factory::create(2,0,100,w1,w1->get_level()+1);
-            REQUIRE(w2->get_level()==1);
-            auto w3=assign_wrap_factory::create(2,0,100,w2,w2->get_level()+1);
-            REQUIRE(w3->get_level()==2);
-            acc->push_to_trail(w2);
-            acc->push_to_trail(w3);
-            REQUIRE(acc->get_max_level()==2);
+    const auto &list = w1->get_modified();
+    int i = 10;
+    int j = 1;
+    for (const auto &elem : list)
+    {
+        elem.first == i++;
+        elem.second == j++;
+    }
+    SECTION("acc")
+    {
+        auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
+        acc->push_to_trail(w1);
+        auto w2 = af.create(2, 100, 0, w1, w1->get_level() + 1);
+        REQUIRE(w2->get_level() == 1);
+        auto w3 = af.create(2, 100, 0, w2, w2->get_level() + 1);
+        REQUIRE(w3->get_level() == 2);
+        acc->push_to_trail(w2);
+        acc->push_to_trail(w3);
+        REQUIRE(acc->get_max_level() == 2);
+    }
+}
 
-
-        }
-
-
-} 
-*/
 TEST_CASE("EventQueue")
 {
 
@@ -74,24 +76,43 @@ TEST_CASE("EventQueue")
             REQUIRE(m_queue.get_next_time() == 4);
         }
     }
-    SECTION("True test")
+    SECTION("True test for event_queue")
     {
-        auto w1 = assign_wrap_factory::create(1, 0, 100,{-1,nullptr});
-        using T=decltype(w1)::element_type;
+        assign_wrap_factory af;
+        auto w1 = af.create(1, 100, -1, shared_null);
+        using T = decltype(w1)::element_type;
         w1->add_modified_list(10, 1);
         w1->add_modified_list(11, 2);
         w1->add_modified_list(12, 3);
         w1->add_modified_list(13, 4);
         w1->add_modified_list(14, 5);
-        EventQueue<Event<T>,decltype(EventComp<T>)> m_queue(EventComp<T>);
-        auto evalue=EventValue<T>(EventType::FinishAndSendClause,0,10,w1,HardwareType::ClauseUnit,1);
-        auto event=Event<T>(evalue,0,10);
+        EventQueue<Event<T>, decltype(EventComp<T>)> m_queue(EventComp<T>);
+        auto evalue = EventValue<T>(EventType::FinishAndSendClause, 0, 10, w1, HardwareType::ClauseUnit, 1);
+        auto event = Event<T>(evalue, 0, 10);
         m_queue.push(event);
-        REQUIRE(m_queue.get_next_event().size==10);
-        auto evalue2=EventValue<T>(EventType::FinishAndSendClause,11,10,w1,HardwareType::ClauseUnit,1);
-        auto event2=Event<T>(evalue2,0,9);
+        REQUIRE(m_queue.get_next_event().size == 10);
+        auto evalue2 = EventValue<T>(EventType::FinishAndSendClause, 11, 10, w1, HardwareType::ClauseUnit, 1);
+        auto event2 = Event<T>(evalue2, 0, 9);
         m_queue.push(event2);
-        REQUIRE(m_queue.get_next_event().index==11);
-
+        REQUIRE(m_queue.get_next_event().index == 11);
     }
+}
+
+TEST_CASE("real acc test")
+{
+    assign_wrap_factory af;
+    auto w1 = af.create(1, 100, -1, shared_null, 0);
+    w1->add_modified_list(10, 1);
+    w1->add_modified_list(11, 2);
+    auto w2 = af.create(2, 100, 10, w1, 1);
+    auto w3 = af.create(3, 100, 11, w2, 3);
+
+    auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
+
+    acc->push_to_trail(w1);
+    acc->push_to_trail(w2);
+    acc->push_to_trail(w3);
+
+    acc->set_ready();
+    auto cycle = acc->start_sim();
 }
