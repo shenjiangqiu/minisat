@@ -17,14 +17,8 @@ TEST_CASE("main test")
     w1->add_modified_list(13, 4);
     w1->add_modified_list(14, 5);
 
-    const auto &list = w1->get_modified();
-    int i = 10;
-    int j = 1;
-    for (const auto &elem : list)
-    {
-        elem.first == i++;
-        elem.second == j++;
-    }
+    //const auto &list = w1->get_modified();
+
     SECTION("acc")
     {
         auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
@@ -101,18 +95,61 @@ TEST_CASE("EventQueue")
 TEST_CASE("real acc test")
 {
     assign_wrap_factory af;
-    auto w1 = af.create(1, 100, -1, shared_null, 0);
-    w1->add_modified_list(10, 1);
-    w1->add_modified_list(11, 2);
-    auto w2 = af.create(2, 100, 10, w1, 1);
-    auto w3 = af.create(3, 100, 11, w2, 3);
+    SECTION("simple test")
+    {
 
-    auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
+        auto w1 = af.create(1, 100, -1, shared_null, 0);
+        w1->add_modified_list(10, 1);
+        w1->add_modified_list(11, 2);
+        auto w2 = af.create(2, 100, 10, w1, 1);
+        w2->add_modified_list(11, 1);
+        auto w3 = af.create(3, 100, 11, w2, 3);
+        //std::shared_ptr<...> create_acc<...>(int watcher_proc_size, int watcher_proc_num, int clause_proc_num, int miss_latency, int watcher_process_latency, int clause_process_latency)
 
-    acc->push_to_trail(w1);
-    acc->push_to_trail(w2);
-    acc->push_to_trail(w3);
+        auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
 
-    acc->set_ready();
-    auto cycle = acc->start_sim();
+        acc->push_to_trail(w1);
+        acc->push_to_trail(w2);
+        acc->push_to_trail(w3);
+
+        acc->set_ready();
+        //acc->print_on();
+        auto cycle = acc->start_sim();
+        std::cout << "cycle = " << cycle << std::endl;
+        REQUIRE(cycle == 1063);
+    }
+    SECTION("generate conf test")
+    {
+
+        auto w1 = af.create(1, 100, -1, shared_null, 0);
+        w1->add_modified_list(10, 1);
+        w1->add_modified_list(11, 2);
+        auto w2 = af.create(2, 100, 10, w1, 1);
+        w2->add_modified_list(11, 1);
+        auto w3 = af.create(3, 100, 11, w2, 3);
+        //std::shared_ptr<...> create_acc<...>(int watcher_proc_size, int watcher_proc_num, int clause_proc_num, int miss_latency, int watcher_process_latency, int clause_process_latency)
+
+        auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200);
+
+        acc->push_to_trail(w1);
+        acc->push_to_trail(w2);
+        acc->push_to_trail(w3);
+        SECTION("1, first conf")
+        {
+            w1->set_generated_conf(10);
+            acc->set_ready();
+            //acc->print_on();
+            auto cycle = acc->start_sim();
+            std::cout << "cycle = " << cycle << std::endl;
+            REQUIRE(cycle == 420);
+        }
+        SECTION("2, second conf"){
+            w2->set_generated_conf(11);
+            acc->set_ready();
+            //acc->print_on();
+            auto cycle = acc->start_sim();
+            std::cout << "cycle = " << cycle << std::endl;
+            REQUIRE(cycle == 420);
+        }
+    }
 }

@@ -7,6 +7,7 @@ struct element
     int key;
     int value;
 };
+
 ostream &operator<<(ostream &os, const element &e)
 {
     os << e.key << "=" << e.value;
@@ -25,8 +26,22 @@ int main(int argc, char **argv)
         cout << queue.top() << endl;
         queue.pop();
     }
-    std::pair<int,float> a={1,2.9};
+    //std::pair<int, float> a = {1, 2.9};
 
-    int a=0;
-    auto wa=std::weak_ptr<int>(&a);
+    auto a = std::shared_ptr<int>(new int(10));
+
+    if (a)
+    {
+        std::cout << "yes!" << std::endl;
+        std::cout << *a << std::endl;
+    }
+    else
+    {
+        std::cout << "no!" << std::endl;
+    }
+
+
+    if((int b=0)==0){
+        
+    }
 }
