@@ -143,13 +143,33 @@ TEST_CASE("real acc test")
             std::cout << "cycle = " << cycle << std::endl;
             REQUIRE(cycle == 420);
         }
-        SECTION("2, second conf"){
+        SECTION("2, second conf")
+        {
             w2->set_generated_conf(11);
             acc->set_ready();
             //acc->print_on();
             auto cycle = acc->start_sim();
             std::cout << "cycle = " << cycle << std::endl;
-            REQUIRE(cycle == 420);
+            REQUIRE(cycle == 840);
         }
+        SECTION("3, third conf")
+        {
+            w3->add_modified_list(11, 10);
+            w3->set_generated_conf(11);
+            acc->set_ready();
+            //acc->print_on();
+            auto cycle = acc->start_sim();
+            std::cout << "cycle = " << cycle << std::endl;
+            REQUIRE(cycle == 1260);
+        }
+    }
+
+    SECTION("parralle test")
+    {
+        //todo generate multiple assigments at the same time, those assignment should be able to run in parallel
+    }
+    SECTION("limited hardware test")
+    {
+        //todo now we have more task and limited hardware resource, the test should be able to queued.
     }
 }
