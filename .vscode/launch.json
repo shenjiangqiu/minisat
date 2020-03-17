@@ -8,6 +8,26 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
+            "program": "${workspaceFolder}/core/minisat_debug",
+            "args": ["/home/sjq/cnfs/ASG_96_len112_known_last12_2.cnf"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
             "program": "/home/sjq/Downloads/minisat/core/TEST_WRAP",
             "args": [],
             "stopAtEntry": false,

@@ -1,7 +1,32 @@
 #ifndef _EVENT_H_
 #define _EVENT_H_
+
 #include <memory>
 #include <iostream>
+#include <queue>
+
+template <typename EventType, typename EventComp>
+class EventQueue
+{
+public:
+    EventQueue(const EventComp &comp) : m_event_queue(comp) {}
+    void push(const EventType &event) { m_event_queue.push(event); }
+    const EventType &top() const { return m_event_queue.top(); }
+    void pop() { m_event_queue.pop(); }
+    bool empty() const { return m_event_queue.empty(); }
+    auto get_next_time() const
+    {
+        return m_event_queue.top().get_key();
+    }
+    auto get_next_event() const
+    {
+        return m_event_queue.top().get_value();
+    }
+    void clear() { m_event_queue.clear(); }
+
+private:
+    std::priority_queue<EventType, std::deque<EventType>, EventComp> m_event_queue;
+};
 enum class EventType
 {
     ReadWatcherList,

@@ -2,10 +2,14 @@
 #define ASSIGN_WRAP_H
 #include <memory>
 #include <tuple>
+#include <map>
 template <typename T, typename Time_t = int, typename Size_t = int, typename Clause_t = int>
 class assign_wrap
 {
 public:
+    ~assign_wrap()
+    {
+    }
     assign_wrap() = delete;
     void add_pushed_list(int index, T value) { pushed_other_list_items.insert(std::make_pair(index, value)); }
     void add_modified_list(int index, Clause_t value) { modified_clause_list_items.insert(std::make_pair(index, value)); }

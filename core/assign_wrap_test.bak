@@ -2,8 +2,8 @@
 #include "catch.hpp"
 #include "assign_wrap.h"
 #include "acc.h"
-#include "event_queue.h"
-#include "event.h"
+//#include "event_queue.h"
+//#include "event.h"
 #include <iostream>
 std::shared_ptr<assign_wrap<int, int, int, int>> shared_null;
 TEST_CASE("main test")
@@ -114,6 +114,8 @@ TEST_CASE("real acc test")
 
         acc->set_ready();
         //acc->print_on();
+        acc->print_on(1);
+
         auto cycle = acc->start_sim();
         std::cout << "cycle = " << cycle << std::endl;
         REQUIRE(cycle == 1063);
@@ -138,7 +140,7 @@ TEST_CASE("real acc test")
         {
             w1->set_generated_conf(10);
             acc->set_ready();
-            //acc->print_on();
+            acc->print_on(1);
             auto cycle = acc->start_sim();
             std::cout << "cycle = " << cycle << std::endl;
             REQUIRE(cycle == 420);
