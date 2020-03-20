@@ -3,6 +3,7 @@
 
 
 #define CONTROL_MAGIC_A 100
+#define CONTROL_PRINT_A 2323
 #define CONTROL_PROP_START_B 1
 #define CONTROL_PROP_END_B 2
 

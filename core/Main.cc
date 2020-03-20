@@ -19,7 +19,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 #include <errno.h>
-
+#include <core/sim_api.h>
 #include <signal.h>
 #include <zlib.h>
 
@@ -160,6 +160,7 @@ int main(int argc, char** argv)
         }
         
         vec<Lit> dummy;
+        SimRoiStart();
         lbool ret = S.solveLimited(dummy);
         if (S.verbosity > 0){
             printStats(S);

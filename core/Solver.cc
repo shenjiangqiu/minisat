@@ -19,12 +19,12 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 #include <math.h>
-
+#include "core/sim_api.h"
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include "core/sim_api.h"
+#include <iostream>
 #include "core/sim_control.h"
-#include "acc.h"
 using namespace Minisat;
 
 //=================================================================================================
@@ -448,6 +448,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
+unsigned long long total_propagate=0;
 CRef Solver::propagate()
 {
     SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
@@ -507,9 +508,20 @@ CRef Solver::propagate()
     }
     propagations += num_props;
     simpDB_props -= num_props;
-
-    SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_END_B);
-    
+    #pragma optimize( "", off )
+    total_propagate++;
+    if (total_propagate == 500)
+    {
+        //std::cout<<"total_propagate="<<total_propagate<<std::endl;
+        SimMarker(CONTROL_PRINT_A, total_propagate);
+        std::cout << "total_propagate=" << total_propagate << std::endl;
+        fflush(stdout);
+    }
+    if (total_propagate == 600)
+    {
+        exit(0);
+    }
+#pragma optimize( "", on )
     return confl;
 }
 
@@ -619,6 +631,7 @@ bool Solver::simplify()
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int nof_conflicts)
 {
+    
     assert(ok);
     int         backtrack_level;
     int         conflictC = 0;
