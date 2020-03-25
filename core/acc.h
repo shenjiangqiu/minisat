@@ -10,7 +10,7 @@
 #include <memory>
 #include <iostream>
 #include <queue>
-
+#include <cache.h>
 template <typename EventType, typename EventComp>
 class EventQueue
 {
@@ -43,6 +43,7 @@ enum class EventType
     ProcessWatcherList,
     FinishAndSendClause,
     ProcessClause,
+    missAccess
 
 };
 std::ostream &operator<<(std::ostream &os, EventType type)
@@ -60,6 +61,9 @@ std::ostream &operator<<(std::ostream &os, EventType type)
         break;
     case EventType::ProcessClause:
         os << "ProcessClause";
+        break;
+    case EventType::missAccess:
+        os << "MissAccess";
         break;
     }
     os << std::endl;
@@ -139,7 +143,8 @@ public:
                                       clause_process_latency(clause_process_latency),
                                       m_using_watcher_unit(0),
                                       m_using_clause_unit(0),
-                                      m_event_queue(EventComp<T>) {}
+                                      m_event_queue(EventComp<T>),
+                                      m_cache(16, 16384, cache::lru, 256, 256) {}
     void print_on(int level)
     {
         print_level = level;
@@ -173,12 +178,25 @@ public:
     {
         return value_queue.size();
     }
+    void handle_new_watch_list(std::queue<std::pair<int, std::weak_ptr<T>>> &waiting_queue, unsigned long long end_time);
 
     bool have_watcher_unit_ready() const { return m_using_watcher_unit < w_num; }
     bool have_clause_unit_ready() const { return m_using_watcher_unit < c_num; }
     void value_push(std::shared_ptr<T> value) { value_queue.push_back(value); }
     int get_max_level() { return (*std::prev(value_queue.cend()))->get_level(); }
     //void push_time_records(std::shared_ptr<Time_record> time) { time_records.push_back(time); }
+    unsigned long long get_global_blocked_clause() const { return global_blocked_clause; }
+    unsigned long long get_global_blocked_times() const { return global_blocked_times; }
+    unsigned long long get_waiting_watcher_list() const { return waiting_watcher_list; }
+    unsigned long long get_waiting_watcher_times() const { return waiting_watcher_times; }
+    unsigned long long get_idle_clause_unit_total() const { return idle_clause_unit_total; }
+    unsigned long long get_idle_clause_unit_times() const { return idle_clause_unit_times; }
+    unsigned long long get_idel_watcher_total() const { return idel_watcher_total; }
+    unsigned long long get_idel_watcher_times() const { return idel_watcher_times; }
+    unsigned long long get_m_access() const { return m_access; }
+    unsigned long long get_m_miss() const { return m_miss; }
+    unsigned long long get_m_hit() const { return m_hit; }
+    unsigned long long get_m_hit_res() const { return m_hit_res; }
 
 private:
     int w_size;
@@ -195,6 +213,21 @@ private:
     int m_using_clause_unit;
     EventQueue<Event<T>, decltype(EventComp<T>)> m_event_queue;
     int print_level = 0;
+
+    //statistics
+    cache m_cache;
+    unsigned long long global_blocked_clause = 0;
+    unsigned long long global_blocked_times = 0;
+    unsigned long long waiting_watcher_list = 0;
+    unsigned long long waiting_watcher_times = 0;
+    unsigned long long idle_clause_unit_total = 0;
+    unsigned long long idle_clause_unit_times = 0;
+    unsigned long long idel_watcher_total = 0;
+    unsigned long long idel_watcher_times = 0;
+    unsigned long long m_access = 0;
+    unsigned long long m_miss = 0;
+    unsigned long long m_hit = 0;
+    unsigned long long m_hit_res = 0;
 };
 
 template <typename T>
@@ -206,6 +239,70 @@ std::shared_ptr<ACC<T>> create_acc(int watcher_proc_size,
                                    int clause_process_latency)
 {
     return std::make_shared<ACC<T>>(watcher_proc_size, watcher_proc_num, clause_proc_num, miss_latency, watcher_process_latency, clause_process_latency);
+}
+
+template <typename T>
+void ACC<T>::handle_new_watch_list(std::queue<std::pair<int, std::weak_ptr<T>>> &waiting_queue, unsigned long long end_time)
+{
+    int start = waiting_queue.front().first;
+
+    int total = waiting_queue.front().second.lock()->get_watcher_size();
+    auto addr = waiting_queue.front().second.lock()->get_addr();
+    addr += start * 8;
+    auto result = m_cache.access(addr);
+    auto &&waiting_value = waiting_queue.front().second;
+
+    auto is_hit = result == cache::hit;
+
+    switch (result)
+    {
+    case cache::hit:
+        m_hit++;
+        break;
+    case cache::miss:
+        m_miss++;
+        break;
+    case cache::hit_res:
+        m_hit_res++;
+        break;
+    default:
+        break;
+    }
+    m_access++;
+    if (result == cache::miss) //when miss, push event to fill that cache line
+    {
+        auto evalue = EventValue<T>(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, 0);
+        auto event = Event<T>(evalue, end_time, miss_latency + end_time);
+        m_event_queue.push(event);
+    }
+    if (total - start > w_size)
+    {
+        auto evalue = EventValue<T>(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, 0);
+        auto event = Event<T>(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
+
+        waiting_queue.front().first += w_size;
+        if (print_level >= 2)
+            std::cout << event << std::endl;
+        m_event_queue.push(event);
+        m_using_watcher_unit++;
+    }
+    else
+    {
+        //only print the last one
+
+        auto evalue = EventValue<T>(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, 0);
+        auto event = Event<T>(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
+        if (print_level >= 1)
+        {
+            std::cout << "ACC::INIT:LIT: " << waiting_value.lock()->get_value() << std::endl;
+        }
+        //waiting_queue.front().first += (total - start);
+        if (print_level >= 2)
+            std::cout << event << std::endl;
+        m_event_queue.push(event);
+        waiting_queue.pop(); //finished
+        m_using_watcher_unit++;
+    }
 }
 
 template <class T>
@@ -228,38 +325,8 @@ int ACC<T>::start_sim()
     int i = 0;
     while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
     {
-        int start = waiting_queue.front().first;
-        int total = waiting_queue.front().second.lock()->get_watcher_size();
-        if (total - start > w_size)
-        {
-            auto evalue = EventValue<T>(EventType::ReadWatcherList, start, w_size, value, HardwareType::watcherListUnit, 0);
-            auto event = Event<T>(evalue, i, miss_latency + i);
-
-            i++;
-            waiting_queue.front().first += w_size;
-            if (print_level >= 2)
-                std::cout << event << std::endl;
-            m_event_queue.push(event);
-            m_using_watcher_unit++;
-        }
-        else
-        {
-            //only print the last one
-
-            auto evalue = EventValue<T>(EventType::ReadWatcherList, start, total - start, value, HardwareType::watcherListUnit, 0);
-            auto event = Event<T>(evalue, i, miss_latency + i);
-            if (print_level >= 1)
-            {
-                std::cout << "ACC::INIT:LIT: " << value->get_value() << std::endl;
-            }
-            i++;
-            //waiting_queue.front().first += (total - start);
-            if (print_level >= 2)
-                std::cout << event << std::endl;
-            m_event_queue.push(event);
-            waiting_queue.pop(); //finished
-            m_using_watcher_unit++;
-        }
+        handle_new_watch_list(waiting_queue, i);
+        i++;
     }
 
     //second process the event queue,
@@ -273,8 +340,14 @@ int ACC<T>::start_sim()
         last_cycle = end_time;
         switch (event_value.type)
         {
+        case EventType::missAccess:
+        {
+            m_cache.fill(value.lock()->get_addr());
+            break;
+        }
         case EventType::ReadWatcherList:
         {
+
             auto evalue = event_value;
             evalue.type = EventType::ProcessWatcherList;
             auto event = Event<T>(evalue, end_time, end_time + watcher_process_latency);
@@ -318,38 +391,23 @@ int ACC<T>::start_sim()
                 clause_waiting_queue.pop();
                 m_using_clause_unit++;
             }
+            if (m_using_clause_unit == c_num && !clause_waiting_queue.empty())
+            {
+                global_blocked_clause += clause_waiting_queue.size();
+                global_blocked_times++;
+            }
 
             //first to find any watcher_list_to process
             m_using_watcher_unit--;
+
+            if (waiting_queue.empty())
+            {
+                idel_watcher_times++;
+                idel_watcher_total += w_num - m_using_watcher_unit;
+            }
             if (!waiting_queue.empty())
             {
-                int start = waiting_queue.front().first;
-                int total = waiting_queue.front().second.lock()->get_watcher_size();
-                auto &&waiting_value = waiting_queue.front().second;
-                if (total - start > w_size)
-                {
-                    auto evalue = EventValue<T>(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, 0); //fix bug, here not event value, but the value of waiting queue
-                    auto event = Event<T>(evalue, end_time, miss_latency + end_time);
-                    waiting_queue.front().first += w_size;
-                    if (print_level >= 2)
-                        std::cout << event << std::endl;
-                    m_event_queue.push(event);
-                    m_using_watcher_unit++;
-                }
-                else
-                {
-
-                    auto evalue = EventValue<T>(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, 0); //fix bug, here not event value, but the value of waiting queue
-                    auto event = Event<T>(evalue, end_time, miss_latency + end_time);
-                    //waiting_queue.front().first += (total - start);
-                    if (print_level >= 2)
-                        std::cout << event << std::endl;
-                    if (print_level >= 1)
-                        std::cout << "ACC::PROCESS:LIT: " << waiting_value.lock()->get_value() << std::endl;
-                    m_event_queue.push(event);
-                    waiting_queue.pop(); //finished
-                    m_using_watcher_unit++;
-                }
+                handle_new_watch_list(waiting_queue, end_time);
             }
 
             break;
@@ -366,8 +424,8 @@ int ACC<T>::start_sim()
             //first to check if we generated new assignment or conflict
             if (value.lock()->get_generated_conf() == event_value.index)
             {
-                m_using_clause_unit=0;
-                m_using_watcher_unit=0;
+                m_using_clause_unit = 0;
+                m_using_watcher_unit = 0;
                 return end_time; //we already finished!
             }
             //check if generate new assignment
@@ -380,39 +438,31 @@ int ACC<T>::start_sim()
                 int i = 0;
                 while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
                 {
-                    int start = waiting_queue.front().first;
-                    int total = waiting_queue.front().second.lock()->get_watcher_size();
-                    auto waiting_value = waiting_queue.front().second;
-                    if (total - start > w_size)
+                    handle_new_watch_list(waiting_queue, end_time + i);
+                    i++;
+                }
+                if (m_using_watcher_unit >= w_num && !waiting_queue.empty())
+                {
+                    int total_size = 0;
+                    int size = waiting_queue.size();
+                    for (int i = 0; i < size; i++)
                     {
-                        auto evalue = EventValue<T>(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, 0);
-                        auto event = Event<T>(evalue, end_time + i, end_time + miss_latency + i);
-
-                        i++;
-                        waiting_queue.front().first += w_size;
-                        if (print_level >= 2)
-                            std::cout << event << std::endl;
-
-                        m_event_queue.push(event);
+                        auto temp = waiting_queue.front();
+                        total_size += temp.second.lock()->get_watcher_size() - temp.first;
+                        waiting_queue.pop();
+                        waiting_queue.push(temp);
                     }
-                    else
-                    {
-                        auto evalue = EventValue<T>(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, 0);
-                        auto event = Event<T>(evalue, end_time + i, end_time + miss_latency + i);
-                        i++;
-                        //waiting_queue.front().first += (total - start);
-                        if (print_level >= 2)
-                            std::cout << event << std::endl;
-                        if (print_level >= 1)
-                            std::cout << "ACC::PROCESS:LIT: " << waiting_value.lock()->get_value() << std::endl;
-                        m_event_queue.push(event);
-                        waiting_queue.pop(); //finished
-                    }
-                    m_using_watcher_unit++;
+                    waiting_watcher_list += (total_size + w_size - 1) / w_size;
+                    waiting_watcher_times++;
                 }
             }
 
             //now, need to check if any one is waiting for using the clause process units
+            if (clause_waiting_queue.empty())
+            {
+                idle_clause_unit_total += c_num - m_using_clause_unit;
+                idle_clause_unit_times++;
+            }
             while (!clause_waiting_queue.empty() && m_using_clause_unit < c_num)
             {
                 auto clause_waiting = clause_waiting_queue.front();

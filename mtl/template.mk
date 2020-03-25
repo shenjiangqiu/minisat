@@ -25,14 +25,14 @@ LFLAGS    ?= -Wall
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-LFLAGS    += -lz
+LFLAGS    += -lz -lsjqcache
 
 .PHONY : s p d r rs clean 
 
 s:	$(EXEC)
 p:	$(EXEC)_profile
 d:	$(EXEC)_debug
-r:	$(EXEC)_release
+r:	$(EXEC)_release 
 rs:	$(EXEC)_static
 
 libs:	lib$(LIB)_standard.a

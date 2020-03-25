@@ -49,6 +49,17 @@
         "streambuf": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "bitset": "cpp"
-    }
+        "bitset": "cpp",
+        "cstring": "cpp",
+        "ctime": "cpp",
+        "chrono": "cpp",
+        "condition_variable": "cpp",
+        "future": "cpp",
+        "iostream": "cpp",
+        "mutex": "cpp",
+        "thread": "cpp",
+        "map": "cpp",
+        "set": "cpp"
+    },
+    "python.pythonPath": "/home/sjq/anaconda3/bin/python"
 }

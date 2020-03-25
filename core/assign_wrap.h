@@ -45,6 +45,8 @@ public:
     assign_wrap(assign_wrap<T, Time_t, Size_t, Clause_t> &&other) = default;
     assign_wrap(const assign_wrap<T, Time_t, Size_t, Clause_t> &other) = default;
     const T &get_value() const { return value; }
+    void set_addr(unsigned long long t_addr) { addr = t_addr; }
+    unsigned long long get_addr() const { return addr; }
 
 private:
     T value;
@@ -61,6 +63,7 @@ private:
     Size_t clause_size;
 
     int level;
+    unsigned long long addr;
 };
 template <typename SharedPointType>
 struct GetType

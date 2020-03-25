@@ -471,16 +471,29 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 using value_type = int;
 using wrap_type = assign_wrap<value_type, int, int, int>;
 using acc_type = ACC<wrap_type>;
-std::shared_ptr<acc_type> m_acc;
-std::shared_ptr<acc_type> get_acc()
-{
-    if (m_acc)
-        return m_acc;
-    return m_acc = create_acc<wrap_type>(32, 32, 32, 200, 20, 100);
-}
-
-unsigned long long total_cycle = 0;
+std::vector<std::shared_ptr<acc_type>> m_acc;
+std::vector<unsigned long long> total_cycle;
 unsigned long long total_prop = 0;
+
+std::vector<std::shared_ptr<acc_type>> get_acc()
+{
+    if (m_acc.size() != 0)
+        return m_acc;
+    else
+    {
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc<wrap_type>(32, 32, 32, 119, 2, 119));
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 32, 119, 2, 119));
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc<wrap_type>(128, 32, 32, 119, 2, 119));
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 64, 119, 2, 119));
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 128, 119, 2, 119));
+    }
+    return m_acc;
+}
 
 CRef Solver::propagate()
 {
@@ -493,7 +506,10 @@ CRef Solver::propagate()
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    get_acc()->clear();
+    for (auto &&mc : get_acc())
+    {
+        mc->clear();
+    }
     assign_wrap_factory awf;
     std::shared_ptr<wrap_type> shared_null;
     while (qhead < trail.size())
@@ -516,7 +532,11 @@ CRef Solver::propagate()
             this_wrap = lit_to_wrap[p.x];
             this_wrap->set_watcher_size(ws.size());
         }
-        get_acc()->push_to_trail(this_wrap);
+        for (auto &&mc : get_acc())
+        {
+            mc->push_to_trail(this_wrap);
+        }
+        this_wrap->set_addr((unsigned long long)((Watcher *)ws));
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
@@ -576,6 +596,7 @@ CRef Solver::propagate()
                 //first generate new wrap;
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
                 auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
+
                 lit_to_wrap.insert({first.x, new_wrap});
                 uncheckedEnqueue(first, cr);
             }
@@ -590,15 +611,50 @@ CRef Solver::propagate()
     SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
     // now ready to sim
     //get_acc()->print_on(1);
-    auto this_cycle = get_acc()->start_sim();
-    total_cycle += this_cycle;
-    total_prop++;
-    if (total_prop % 10000 == 0)
+    std::vector<int> this_cycle;
+    for (auto &&mc : get_acc())
     {
-        std::cout << "total_prop: " << total_prop << std::endl;
-        std::cout << "total_cycle: " << total_cycle << std::endl;
+        this_cycle.push_back(mc->start_sim());
     }
-    get_acc()->clear();
+    for (unsigned int i = 0; i < total_cycle.size(); i++)
+    {
+        total_cycle[i] += this_cycle[i];
+    }
+    if (started)
+        total_prop++;
+
+    if (total_prop % 10000 == 1)
+    {
+        for (unsigned int i = 0; i < total_cycle.size(); i++)
+        {
+            std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+            std::cout << "total_prop: " << total_prop << std::endl;
+            std::cout << "total_cycle: " << total_cycle[i] << std::endl;
+            std::cout << "global_blocked_clause: " << get_acc()[i]->get_global_blocked_clause() << std::endl;
+            std::cout << "global_blocked_times: " << get_acc()[i]->get_global_blocked_times() << std::endl;
+            std::cout << "waiting_watcher_list: " << get_acc()[i]->get_waiting_watcher_list() << std::endl;
+            std::cout << "waiting_watcher_times: " << get_acc()[i]->get_waiting_watcher_times() << std::endl;
+            std::cout << "idle_clause_unit_total: " << get_acc()[i]->get_idle_clause_unit_total() << std::endl;
+            std::cout << "idle_clause_unit_times: " << get_acc()[i]->get_idle_clause_unit_times() << std::endl;
+            std::cout << "idel_watcher_total: " << get_acc()[i]->get_idel_watcher_total() << std::endl;
+            std::cout << "idel_watcher_times: " << get_acc()[i]->get_idel_watcher_times() << std::endl;
+            std::cout << "m_access: " << get_acc()[i]->get_m_access() << std::endl;
+            std::cout << "m_hit " << get_acc()[i]->get_m_hit() << std::endl;
+            std::cout << "m_miss " << get_acc()[i]->get_m_miss() << std::endl;
+            std::cout << "m_hit_res " << get_acc()[i]->get_m_hit_res() << std::endl;
+        }
+    }
+    if(!started){
+        for(auto& ttc:total_cycle){
+            ttc=0;
+        }
+    }
+    if (total_prop >= 1000000)
+    {
+        exit(0);
+    }
+    for (auto &&mc : get_acc())
+        mc->clear();
     return confl;
 }
 
