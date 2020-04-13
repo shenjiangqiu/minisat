@@ -550,10 +550,11 @@ CRef Solver::propagate()
             }
 
             // Make sure the false literal is data[1]:
-            this_wrap->add_modified_list(ii - 1, 0); //currently we don't care about the address
 
             CRef cr = i->cref;
             Clause &c = ca[cr];
+            this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address
+
             Lit false_lit = ~p;
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
@@ -630,18 +631,7 @@ CRef Solver::propagate()
             std::cout << "\n\nprint the " << i << " th acc" << std::endl;
             std::cout << "total_prop: " << total_prop << std::endl;
             std::cout << "total_cycle: " << total_cycle[i] << std::endl;
-            std::cout << "global_blocked_clause: " << get_acc()[i]->get_global_blocked_clause() << std::endl;
-            std::cout << "global_blocked_times: " << get_acc()[i]->get_global_blocked_times() << std::endl;
-            std::cout << "waiting_watcher_list: " << get_acc()[i]->get_waiting_watcher_list() << std::endl;
-            std::cout << "waiting_watcher_times: " << get_acc()[i]->get_waiting_watcher_times() << std::endl;
-            std::cout << "idle_clause_unit_total: " << get_acc()[i]->get_idle_clause_unit_total() << std::endl;
-            std::cout << "idle_clause_unit_times: " << get_acc()[i]->get_idle_clause_unit_times() << std::endl;
-            std::cout << "idel_watcher_total: " << get_acc()[i]->get_idel_watcher_total() << std::endl;
-            std::cout << "idel_watcher_times: " << get_acc()[i]->get_idel_watcher_times() << std::endl;
-            std::cout << "m_access: " << get_acc()[i]->get_m_access() << std::endl;
-            std::cout << "m_hit " << get_acc()[i]->get_m_hit() << std::endl;
-            std::cout << "m_miss " << get_acc()[i]->get_m_miss() << std::endl;
-            std::cout << "m_hit_res " << get_acc()[i]->get_m_hit_res() << std::endl;
+            get_acc()[i]->print();
         }
     }
     if(!started){
@@ -649,7 +639,7 @@ CRef Solver::propagate()
             ttc=0;
         }
     }
-    if (total_prop >= 1000000)
+    if (total_prop >= 10000000)
     {
         exit(0);
     }

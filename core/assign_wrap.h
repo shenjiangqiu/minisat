@@ -3,7 +3,7 @@
 #include <memory>
 #include <tuple>
 #include <map>
-template <typename T, typename Time_t = int, typename Size_t = int, typename Clause_t = int>
+template <typename T, typename Time_t = int, typename Size_t = int, typename Clause_t = unsigned long long>
 class assign_wrap
 {
 public:
@@ -45,10 +45,12 @@ public:
     assign_wrap(assign_wrap<T, Time_t, Size_t, Clause_t> &&other) = default;
     assign_wrap(const assign_wrap<T, Time_t, Size_t, Clause_t> &other) = default;
     const T &get_value() const { return value; }
-    void set_addr(unsigned long long t_addr) { addr = t_addr; }
-    unsigned long long get_addr() const { return addr; }
+    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                       //watcher list addr
+    unsigned long long get_addr() const { return addr; }                                              //watcher list addr
+    unsigned long long get_clause_addr(int index) const { return modified_clause_list_items[index]; } //clause  addr
 
 private:
+    unsigned long long clause_addr;
     T value;
     Size_t watcher_size;
     int depend_id;
