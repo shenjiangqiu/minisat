@@ -13,7 +13,8 @@ public:
     assign_wrap() = delete;
     void add_pushed_list(int index, T value) { pushed_other_list_items.insert(std::make_pair(index, value)); }
     void add_modified_list(int index, Clause_t value) { modified_clause_list_items.insert(std::make_pair(index, value)); }
-
+    void add_detail(int index, unsigned long long value) { clause_detail[index].push_back(value); }
+    const std::vector<unsigned long long> get_detail(int index) const { return clause_detail[index]; }
     void set_watcher_size(Size_t size) { watcher_size = size; }
     Size_t get_watcher_size() const { return watcher_size; }
     const auto &get_pushed() const { return pushed_other_list_items; }
@@ -57,6 +58,7 @@ private:
     std::weak_ptr<assign_wrap<T, Time_t, Size_t, Clause_t>> depend_value;
     //std::pair<int, std::weak_ptr<assign_wrap<T, Time_t, Size_t, Clause_t>>> Depends;
     std::map<int, Clause_t> modified_clause_list_items;
+    std::map<int, std::vector<unsigned long long>> clause_detail;
     std::map<int, T> pushed_other_list_items;
     int generated_conf;
 

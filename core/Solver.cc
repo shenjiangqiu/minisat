@@ -569,17 +569,23 @@ CRef Solver::propagate()
                 *j++ = w;
                 continue;
             }
+            this_wrap->add_detail(ii - 1, (unsigned long long)(&c[0]));
+            this_wrap->add_detail(ii - 1, (unsigned long long)(&c[1]));
 
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
+            {
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&c[k]));
+
                 if (value(c[k]) != l_False)
                 {
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
+                    this_wrap->add_pushed_list(ii-1,int(~c[1]));
                     goto NextClause;
                 }
-
+            }
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False)
@@ -634,9 +640,11 @@ CRef Solver::propagate()
             get_acc()[i]->print();
         }
     }
-    if(!started){
-        for(auto& ttc:total_cycle){
-            ttc=0;
+    if (!started)
+    {
+        for (auto &ttc : total_cycle)
+        {
+            ttc = 0;
         }
     }
     if (total_prop >= 10000000)

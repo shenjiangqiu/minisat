@@ -57,7 +57,8 @@ enum class EventType
     FinishAndSendClause,
     ProcessClause,
     missAcce,
-    sendToVault
+    sendToVault,
+    VaultMissAccess
 
 };
 std::ostream &operator<<(std::ostream &os, EventType type)
@@ -88,16 +89,34 @@ enum class HardwareType
     watcherListUnit,
     ClauseUnit
 };
+class derectory{
+    public:
+    enum stats{ hit_local,hit_remote,miss};
+    void write(unsigned long long addr,bool miss ){
+        
+    }
+};
 template <typename T>
 struct EventValue
 {
-    EventValue(EventType _tp, int _id, int _sz, std::weak_ptr<T> v, HardwareType ht, int hi) : type(_tp), index(_id), size(_sz), value(v), hType(ht), HardwareId(hi) {}
+    EventValue(EventType _tp, int _id, int _sz, std::weak_ptr<T> v,
+               HardwareType ht, int hi,
+               unsigned long long addr = 0,
+               int vault_index = 0) : type(_tp),
+                                      index(_id),
+                                      size(_sz), value(v),
+                                      hType(ht),
+                                      HardwareId(hi),
+                                      addr(addr),
+                                      vault_index(vault_index) {}
     EventType type;
     int index;
     int size;
     std::weak_ptr<T> value; // the assignment wraper
     HardwareType hType;
     int HardwareId;
+    unsigned long long addr;
+    int vault_index;
 };
 
 template <typename T>
@@ -137,7 +156,11 @@ template <typename T>
 auto EventComp = [](const Event<T> &e1, const Event<T> &e2) {
     return e1.get_key() > e2.get_key();
 };
-
+struct memory_bendwidth_info
+{
+    int num_cycles_for_watcher;
+    int num_cycles_for_clause;
+};
 template <typename T>
 class ACC
 {
@@ -148,20 +171,24 @@ public:
         int clause_proc_num,
         int miss_latency,
         int watcher_process_latency,
-        int clause_process_latency) : w_size(watcher_proc_size),
-                                      w_num(watcher_proc_num),
-                                      c_num(clause_proc_num),
-                                      m_ready(false),
-                                      miss_latency(miss_latency),
-                                      watcher_process_latency(watcher_process_latency),
-                                      clause_process_latency(clause_process_latency),
-                                      m_using_watcher_unit(0),
-                                      m_using_clause_unit(0),
-                                      m_event_queue(EventComp<T>),
-                                      vault_waiting_queue(clause_proc_num),
-                                      valut_cache(clause_proc_num, cache(16, 16384, cache::lru, 256, 256))
-                                          m_cache(16, 16384, cache::lru, 256, 256),
-                                      vault_busy(clause_proc_num, false) {}
+        int clause_process_latency,
+        int vault_memory_access_latency,
+        int cpu_to_vault_latency) : w_size(watcher_proc_size),
+                                    w_num(watcher_proc_num),
+                                    c_num(clause_proc_num),
+                                    m_ready(false),
+                                    miss_latency(miss_latency),
+                                    watcher_process_latency(watcher_process_latency),
+                                    clause_process_latency(clause_process_latency),
+                                    m_using_watcher_unit(0),
+                                    m_using_clause_unit(0),
+                                    m_event_queue(EventComp<T>),
+                                    vault_waiting_queue(clause_proc_num),
+                                    valut_cache(clause_proc_num, cache(16, 16384, cache::lru, 256, 256)),
+                                    m_cache(16, 16384, cache::lru, 256, 256),
+                                    vault_busy(clause_proc_num, false),
+                                    vault_memory_access_latency(vault_memory_access_latency),
+                                    cpu_to_vault_latency(cpu_to_vault_latency) {}
     void print_on(int level)
     {
         print_level = level;
@@ -195,6 +222,92 @@ public:
     }
 
     int start_sim();
+    void handle_vault_process(int vault_index, int end_time)
+    {
+
+        auto clause_waiting_tuple = vault_waiting_queue[vault_index].front();
+        auto watcher_index = std::get<0>(clause_waiting_tuple);
+
+        auto evalue = std::get<1>(clause_waiting_tuple);
+        v_of_e = evalue.value;
+        auto clause_addr = v_of_e.lock()->get_clause_addr(index);           // the address of the clause
+        auto pushed_to_others = v_of_e.lock()->get_pushed_to_others(index); // modified other's watcher list
+        auto clause_detail = v_of_e.lock()->get_clause_detail(index);       //vector about detailed read value; content type: unsigned long long
+        auto size_of_detail = clause_detail.size();
+
+        evalue.type = EventType::ProcessClause;
+        evalue.index = watcher_index;
+        auto result = valut_cache[vault_index].access(clause_addr);
+        //
+        auto latency = 0;
+        //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
+        if (result == cache::hit) // the latency of read clause;
+        {
+            latency += 1;
+        }
+        else
+        {
+            latency += vault_memory_access_latency;
+        }
+        if (result == cache::miss)
+        {
+            //create miss event
+            auto evalue = EventValue<T>(EventType::VaultMissAccess, watcher_index, 1, v_of_e, HardwareType::watcherListUnit, 0, clause_addr, vault_index);
+            auto event = Event<T>(evalue, end_time, vault_memory_access_latency + end_time);
+            m_event_queue.push(event);
+            end_time += vault_memory_access_latency;
+        }
+        for (int i = 0; i < size_of_detail; i++)
+        {
+            auto detail = clause_detail[i];
+            auto result = valut_cache[i].access(detail);
+            //here need to consider the remote modification
+            // but currently , we only consider the original clause miss times
+            if (result == cache::hit)
+            {
+                latency += 1;
+            }
+            else
+            {
+
+                latency += vault_memory_access_latency;
+            }
+            if (result == cache::miss)
+            {
+                auto evalue = EventValue<T>(EventType::VaultMissAccess, index, w_size, waiting_value, HardwareType::watcherListUnit, 0, addr, index);
+                auto event = Event<T>(evalue, end_time, vault_memory_access_latency + end_time);
+                end_time += vault_memory_access_latency;
+
+                m_event_queue.push(event);
+            }
+        }
+        auto event = Event<T>(evalue, end_time, end_time + 5);
+
+        if (print_level >= 2)
+            std::cout << event << std::endl;
+        m_event_queue.push(event);
+        vault_waiting_queue[i].pop();
+        vault_busy[i] = true;
+    }
+    memory_bendwidth_info get_info()
+    {
+        auto copy_of_value_queue = value_queue;
+        cache cpu_l1_cache;
+        int total_clause = 0;
+
+        while (!copy_of_value_queue.empty())
+        {
+            auto value = copy_of_value_queue.front();
+            copy_of_value_queue.pop();
+            auto size = value.lock()->get_watcher_size();
+            auto modified = value.lock()->get_modified();
+            for (auto v : modified)
+            {
+                auto addr = v.second;
+                auto result = cpu_l1_cache.access(addr);
+            }
+        }
+    }
     void push_to_trail(std::shared_ptr<T> value)
     {
         value_queue.push_back(value);
@@ -245,6 +358,7 @@ public:
     }
 
 private:
+    int vault_memory_access_latency;
     int w_size;
     int w_num;
     int c_num;
@@ -527,48 +641,18 @@ int ACC<T>::start_sim()
         }
         case EventType::sendToVault: //after vault recived the clause request
         {
-            auto index = event_value.index;
+            auto index = event_value.index; //
             assert(event_value.size == 1);
-            auto clause_addr = value_of_event.lock()->get_clause_addr(index);
+            auto clause_addr = value_of_event.lock()->get_clause_addr(index); // the address of the clause
+            //auto pushed_to_others = value_of_event.lock()->get_pushed_to_others(index); // modified other's watcher list
+            auto clause_detail = value_of_event.lock()->get_clause_detail(index); //vector about detailed read value; content type: unsigned long long
+            auto size_of_detail = clause_detail.size();
+
             auto vault_index = assign_to_vault(clause_addr);
             vault_waiting_queue[vault_index].push(std::make_tuple(index, value_of_event, clause_addr));
             if (!vault_busy[vault_index]) //process the clause
             {
-                auto clause_waiting_tuple = vault_waiting_queue[i].front();
-                auto evalue = std::get<1>(clause_waiting_tuple);
-                evalue.type = EventType::ProcessClause;
-                auto addr = std::get<2>(clause_waiting_tuple);
-                auto result = valut_cache[i].access(addr);
-                auto latency = 0;
-                //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
-                if (result == cache_hit)
-                {
-                    latency = 10;
-                }
-                else
-                {
-                    latency = 100;
-                }
-                switch (result)
-                {
-                case cache::hit:
-                {
-                }
-                case cache::miss:
-                {
-                }
-                case cache::hit_res:
-                {
-                }
-                }
-
-                auto event = Event<T>(evalue, end_time, end_time + latency);
-
-                if (print_level >= 2)
-                    std::cout << event << std::endl;
-                m_event_queue.push(event);
-                vault_waiting_queue[i].pop();
-                vault_busy[i] = true;
+                handle_vault_process(vault_index, end_time);
             }
 
             break;
@@ -578,20 +662,21 @@ int ACC<T>::start_sim()
             break;
         case EventType::ProcessClause: //need to modified. now get the task from the vault_waiting_queue
         {
-            m_using_clause_unit--;
+            auto vault_index = event_value.vault_index;
+            vault_busy[vault_index] = false;
 
             //in this case, we need to generate new event, and let waiting queue to be processed
 
             //first to check if we generated new assignment or conflict
-            if (value.lock()->get_generated_conf() == event_value.index)
+            if (value_of_event.lock()->get_generated_conf() == event_value.index)
             {
                 m_using_clause_unit = 0;
                 m_using_watcher_unit = 0;
                 return end_time; //we already finished!
             }
             //check if generate new assignment
-            auto iter = value.lock()->get_generated_assignments().find(event_value.index);
-            if (iter != value.lock()->get_generated_assignments().end())
+            auto iter = value_of_event.lock()->get_generated_assignments().find(event_value.index);
+            if (iter != value_of_event.lock()->get_generated_assignments().end())
             {
 
                 auto generated_assignments = (*iter).second;
@@ -617,8 +702,13 @@ int ACC<T>::start_sim()
                     waiting_watcher_times++;
                 }
             }
-
+            if (!vault_waiting_queue[vault_index].empty())
+            {
+                vault_busy[vault_index] = true;
+                handle_vault_process(vault_index, end_time)
+            }
             //now, need to check if any one is waiting for using the clause process units
+            /*
             if (clause_waiting_queue.empty())
             {
                 idle_clause_unit_total += c_num - m_using_clause_unit;
@@ -643,6 +733,7 @@ int ACC<T>::start_sim()
                 clause_waiting_queue.pop();
                 m_using_clause_unit++;
             }
+            */
             break;
         }
         } // switch
