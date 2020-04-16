@@ -7,6 +7,6 @@ for file in $files; do
     for stat in $stats; do
         
         echo $stat >>result_all.txt
-        awk '/'$stat'/{print $2}' $file | tail -n 9 >>result_all.txt
+        awk '/'$stat'/{print $2}' $file | tail -n 5 >>result_all.txt
     done
 done

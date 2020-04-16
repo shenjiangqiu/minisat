@@ -469,7 +469,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 using value_type = int;
-using wrap_type = assign_wrap<value_type, int, int, int>;
+using wrap_type = assign_wrap<value_type>;
 using acc_type = ACC<wrap_type>;
 std::vector<std::shared_ptr<acc_type>> m_acc;
 std::vector<unsigned long long> total_cycle;
@@ -482,15 +482,15 @@ std::vector<std::shared_ptr<acc_type>> get_acc()
     else
     {
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(32, 32, 32, 119, 2, 119));
+        m_acc.push_back(create_acc<wrap_type>(32, 32, 32, 119, 2, 119, 40, 60));
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 32, 119, 2, 119));
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 32, 119, 2, 119, 40, 60));
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(128, 32, 32, 119, 2, 119));
+        m_acc.push_back(create_acc<wrap_type>(128, 32, 32, 119, 2, 119, 40, 60));
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 64, 119, 2, 119));
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 64, 119, 2, 119, 40, 60));
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 128, 119, 2, 119));
+        m_acc.push_back(create_acc<wrap_type>(64, 32, 128, 119, 2, 119, 40, 60));
     }
     return m_acc;
 }
@@ -582,7 +582,7 @@ CRef Solver::propagate()
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    this_wrap->add_pushed_list(ii-1,int(~c[1]));
+                    this_wrap->add_pushed_list(ii - 1, int(~c[1]));
                     goto NextClause;
                 }
             }
