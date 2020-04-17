@@ -11,7 +11,7 @@
 #include <iostream>
 #include <queue>
 #include <cache.h>
-
+#include <spdlog/spdlog.h>
 //to do list:
 /**
  * 1,implement vault, different clause should be assigned to different vault.
@@ -242,11 +242,11 @@ public:
 
         auto value_of_event = std::get<1>(clause_waiting_tuple);
 
-        auto clause_addr = value_of_event.lock()->get_clause_addr(watcher_index);           // the address of the clause
+        auto clause_addr = value_of_event.lock()->get_clause_addr(watcher_index); // the address of the clause
         //auto pushed_to_others = value_of_event.lock()->get_pushed(); // modified other's watcher list
-        auto clause_detail = value_of_event.lock()->get_clause_detail(watcher_index);       //vector about detailed read value; content type: unsigned long long
+        auto clause_detail = value_of_event.lock()->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         auto size_of_detail = clause_detail.size();
-        auto event_value = EventValue<T>(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0);
+        auto event_value = EventValue<T>(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index);
         event_value.type = EventType::ProcessClause;
         event_value.index = watcher_index;
         auto result = vault_cache[vault_index].access(clause_addr);
@@ -350,13 +350,13 @@ public:
             std::cout << vault_idle_all[i] << " " << vault_idle_times[i] << std::endl;
         }
     }
+    int assign_to_vault(unsigned long long addr) { return (addr >> 9) & (16 - 1); }
 
 private:
     //int vault_memory_access_latency;
     int w_size;
     int w_num;
     int c_num;
-    int assign_to_vault(unsigned long long addr) { return 0; }
     bool m_ready;
     std::vector<std::shared_ptr<T>> value_queue;
     //std::vector<std::shared_ptr<Time_record>> time_records;
@@ -365,8 +365,7 @@ private:
     int clause_process_latency;
     int m_using_watcher_unit;
     int m_using_clause_unit;
-    
-    
+
     EventQueue<Event<T>, decltype(EventComp<T>)> m_event_queue;
     int print_level = 0;
     std::vector<std::queue<std::tuple<int, std::weak_ptr<T>, unsigned long long>>> vault_waiting_queue;
@@ -376,7 +375,7 @@ private:
     std::vector<bool> vault_busy;
     int vault_memory_access_latency;
     int cpu_to_vault_latency;
-    
+
     unsigned long long global_blocked_clause = 0;
     unsigned long long global_blocked_times = 0;
     unsigned long long waiting_watcher_list = 0;
@@ -401,11 +400,11 @@ std::shared_ptr<ACC<T>> create_acc(int watcher_proc_size,
                                    int clause_proc_num,
                                    int miss_latency,
                                    int watcher_process_latency,
-                                   int clause_process_latency, 
-                                   int vault_memory_access_latency, 
+                                   int clause_process_latency,
+                                   int vault_memory_access_latency,
                                    int cpu_to_vault_latency)
 {
-    return std::make_shared<ACC<T>>(watcher_proc_size, watcher_proc_num, clause_proc_num, miss_latency, watcher_process_latency, clause_process_latency,vault_memory_access_latency,cpu_to_vault_latency);
+    return std::make_shared<ACC<T>>(watcher_proc_size, watcher_proc_num, clause_proc_num, miss_latency, watcher_process_latency, clause_process_latency, vault_memory_access_latency, cpu_to_vault_latency);
 }
 
 template <typename T>
@@ -440,6 +439,7 @@ void ACC<T>::handle_new_watch_list(std::queue<std::pair<int, std::weak_ptr<T>>> 
     {
         auto evalue = EventValue<T>(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, 0);
         auto event = Event<T>(evalue, end_time, miss_latency + end_time);
+        spdlog::debug(std::string("CacheMiss addr:") + std::to_string(addr) + std::string(", at cycle:") + std::to_string(end_time));
         m_event_queue.push(event);
     }
     if (total - start > w_size)
@@ -516,7 +516,8 @@ int ACC<T>::start_sim()
         }
         case EventType::missAccess:
         {
-            m_cache.fill(value_of_event.lock()->get_addr());
+            spdlog::debug(std::string("fill:addr: ") + std::to_string(value_of_event.lock()->get_addr() + 8 * event_value.index) + std::string(",at cycle:") + std::to_string(end_time));
+            m_cache.fill(value_of_event.lock()->get_addr() + 8 * event_value.index);
             break;
         }
         case EventType::ReadWatcherList:
@@ -544,8 +545,8 @@ int ACC<T>::start_sim()
             {
                 //bug here, clause addr is not unique for the whole watcher list;
                 //auto clause_addr = value.lock()->get_clause_addr();
-                //auto clause_addr = lower->second;
-                //auto vault_index = assign_to_vault(clause_addr);
+                auto clause_addr = lower->second;
+                auto vault_index = assign_to_vault(clause_addr);
                 //vault_waiting_queue[vault_index].push(std::make_tuple(lower->first,value_of_event,clause_addr); // this clause access is generated by this event
                 //clause_waiting_queue.push(std::make_pair(lower->first, value)); // this mean later we will need to process "value" 's "first" watch 's clause
                 //problem here, push to vault_waiting_queue may not ready;
@@ -555,6 +556,10 @@ int ACC<T>::start_sim()
                 evalue.type = EventType::sendToVault;
                 evalue.index = lower->first;
                 evalue.size = 1;
+                evalue.addr = clause_addr;
+                evalue.vault_index = vault_index;
+                spdlog::debug(std::string("send to vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
+
                 auto event = Event<T>(evalue, end_time + iilatency, end_time + iilatency + cpu_to_vault_latency); //todo this is the cpu to vault latency;
                 iilatency += 1;
                 if (print_level >= 2)
@@ -653,12 +658,15 @@ int ACC<T>::start_sim()
             assert(event_value.size == 1);
             auto clause_addr = value_of_event.lock()->get_clause_addr(index); // the address of the clause
             //auto pushed_to_others = value_of_event.lock()->get_pushed_to_others(index); // modified other's watcher list
-            auto clause_detail = value_of_event.lock()->get_clause_detail(index); //vector about detailed read value; content type: unsigned long long
+            //auto clause_detail = value_of_event.lock()->get_clause_detail(index); //vector about detailed read value; content type: unsigned long long
 
             auto vault_index = assign_to_vault(clause_addr);
             vault_waiting_queue[vault_index].push(std::make_tuple(index, value_of_event, clause_addr));
+            spdlog::debug(std::string("recived in vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
             if (!vault_busy[vault_index]) //process the clause
             {
+                spdlog::debug(std::string("process in Vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
+
                 handle_vault_process(vault_index, end_time);
             }
 
@@ -670,6 +678,7 @@ int ACC<T>::start_sim()
         case EventType::ProcessClause: //need to modified. now get the task from the vault_waiting_queue
         {
             auto vault_index = event_value.vault_index;
+
             vault_busy[vault_index] = false;
 
             //in this case, we need to generate new event, and let waiting queue to be processed
@@ -709,8 +718,11 @@ int ACC<T>::start_sim()
                     waiting_watcher_times++;
                 }
             }
+
             if (!vault_waiting_queue[vault_index].empty())
             {
+                spdlog::debug(std::string("process in Vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
+
                 vault_busy[vault_index] = true;
                 handle_vault_process(vault_index, end_time);
             }
