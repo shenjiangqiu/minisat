@@ -107,11 +107,24 @@ TEST_CASE("real acc test")
     {
 
         auto w1 = af.create(1, 100, -1, shared_null, 0);
-        w1->add_modified_list(10, 1);
+        w1->add_modified_list(10, 1<<9);
+        w1->add_detail(10,12345);
+        w1->add_detail(10,12346);
+        w1->add_detail(10,22347);
+
         w1->add_modified_list(11, 2<<9);
+        w1->add_detail(11,112345);
+        w1->add_detail(11,112346);
+        w1->add_detail(11,122347);
+        w1->add_detail(11,312345);
+        w1->add_detail(11,312346);
+        w1->add_detail(11,322347);
         auto w2 = af.create(2, 100, 10, w1, 1);
-        w2->add_modified_list(11, 1);
-        auto w3 = af.create(3, 100, 11, w2, 3);
+        w2->add_modified_list(12, 3<<9);
+        w2->add_detail(12,412345);
+        w2->add_detail(12,412346);
+        w2->add_detail(12,422347);
+        auto w3 = af.create(3, 100, 12, w2, 3);
         //std::shared_ptr<...> create_acc<...>(int watcher_proc_size, int watcher_proc_num, int clause_proc_num, int miss_latency, int watcher_process_latency, int clause_process_latency)
 
         auto acc = create_acc<decltype(w1)::element_type>(32, 16, 32, 200, 20, 200, 40, 60);

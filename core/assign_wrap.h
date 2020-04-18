@@ -4,7 +4,7 @@
 #include <tuple>
 #include <map>
 #include <vector>
-template <typename T>
+
 class assign_wrap
 {
 public:
@@ -12,28 +12,35 @@ public:
     {
     }
     assign_wrap() = delete;
-    void add_pushed_list(int index, T value) { pushed_other_list_items.insert(std::make_pair(index, value)); }
+    void add_pushed_list(int index, int value) { pushed_other_list_items.insert(std::make_pair(index, value)); }
     void add_modified_list(int index, unsigned long long value) { modified_clause_list_items.insert(std::make_pair(index, value)); }
     void add_detail(int index, unsigned long long value) { clause_detail[index].push_back(value); }
     std::vector<unsigned long long> get_clause_detail(int index) { return clause_detail[index]; }
     void set_watcher_size(int size) { watcher_size = size; }
     int get_watcher_size() const { return watcher_size; }
-    const auto &get_pushed() const { return pushed_other_list_items; }
-    const auto &get_modified() const { return modified_clause_list_items; }
+    auto get_pushed(int index) const { return pushed_other_list_items.at(index); }
+    auto get_modified_by_range(int start, int end) const
+    {
+        auto start_iter = modified_clause_list_items.lower_bound(start);
+        auto end_iter = modified_clause_list_items.upper_bound(end);
+        return std::make_pair(start_iter, end_iter);
+    }
     int get_level() const { return level; }
     void set_generated_conf(int conf) { generated_conf = conf; }
     int get_generated_conf() const { return generated_conf; }
-    const auto &get_generated_assignments() const { return generated_assignments; }
-    void add_generated_assignments(int index, std::weak_ptr<assign_wrap<T>> tgenerated)
+    //auto& get_generated_assignments() const { return generated_assignments; }
+    bool is_genereated(int index) const { return generated_assignments.find(index) != generated_assignments.end(); }
+    assign_wrap *get_generated(int index) const { return is_genereated(index) ? generated_assignments.at(index) : nullptr; }
+    void add_generated_assignments(int index, assign_wrap *tgenerated)
     {
         generated_assignments.insert(std::make_pair(index, tgenerated));
     }
     friend class assign_wrap_factory;
 
-    assign_wrap(T value,
+    assign_wrap(int value,
                 int watcher_size,
                 int depend_id,
-                std::weak_ptr<assign_wrap<T>> depend_value,
+                assign_wrap *depend_value,
                 int level = 0) : value(value),
                                  watcher_size(watcher_size),
                                  depend_id(depend_id),
@@ -43,27 +50,27 @@ public:
                                  level(level)
     {
     }
-    assign_wrap(assign_wrap<T> &other) = default;
-    assign_wrap(assign_wrap<T> &&other) = default;
-    assign_wrap(const assign_wrap<T> &other) = default;
-    const T &get_value() const { return value; }
+    assign_wrap(assign_wrap &other) = default;
+    assign_wrap(assign_wrap &&other) = default;
+    assign_wrap(const assign_wrap &other) = default;
+    int get_value() const { return value; }
     void set_addr(unsigned long long t_addr) { addr = t_addr; }                                 //watcher list addr
     unsigned long long get_addr() const { return addr; }                                        //watcher list addr
     unsigned long long get_clause_addr(int index) { return modified_clause_list_items[index]; } //clause  addr
 
 private:
     unsigned long long clause_addr;
-    T value;
+    int value;
     int watcher_size;
     int depend_id;
-    std::weak_ptr<assign_wrap<T>> depend_value;
-    //std::pair<int, std::weak_ptr<assign_wrap<T>>> Depends;
+    assign_wrap *depend_value;
+    //std::pair<int, assign_wrap*> Depends;
     std::map<int, unsigned long long> modified_clause_list_items;
     std::map<int, std::vector<unsigned long long>> clause_detail;
-    std::map<int, T> pushed_other_list_items;
+    std::map<int, int> pushed_other_list_items;
     int generated_conf;
 
-    std::map<int, std::weak_ptr<assign_wrap<T>>> generated_assignments; // must make the ptr weak here to break circular;
+    std::map<int, assign_wrap *> generated_assignments; // must make the ptr weak here to break circular;
 
     int clause_size;
 
@@ -78,15 +85,14 @@ struct GetType
 class assign_wrap_factory
 {
 public:
-    template <typename T>
-    std::shared_ptr<assign_wrap<T>> create(T value,
-                                           int watcher_size,
-                                           int depend_id,
-                                           std::shared_ptr<assign_wrap<T>> depend_value,
-                                           int level = 0)
+    assign_wrap *create(int value,
+                        int watcher_size,
+                        int depend_id,
+                        assign_wrap *depend_value,
+                        int level = 0)
     {
-        auto depend_value_weak = std::weak_ptr<assign_wrap<T>>(depend_value);
-        auto rt = std::make_shared<assign_wrap<T>>(value, watcher_size, depend_id, depend_value_weak, level);
+
+        auto rt = new assign_wrap(value, watcher_size, depend_id, depend_value, level);
         if (depend_id != -1)
         {
             //std::cout<<"added to the assignement"<<std::endl;

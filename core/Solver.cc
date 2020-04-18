@@ -18,15 +18,17 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
+#include "core/assign_wrap.h"
+#include "core/acc.h"
 #include <math.h>
-#include <core/acc.h>
-#include <core/assign_wrap.h>
+//#include <core/acc.h>
+//#include <core/assign_wrap.h>
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include "core/sim_api.h"
 #include "core/sim_control.h"
-#include "acc.h"
+
 #include <map>
 using namespace Minisat;
 
@@ -469,28 +471,21 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 using value_type = int;
-using wrap_type = assign_wrap<value_type>;
-using acc_type = ACC<wrap_type>;
-std::vector<std::shared_ptr<acc_type>> m_acc;
+using MACC::ACC;
+using MACC::create_acc;
+std::vector<ACC*> m_acc;
 std::vector<unsigned long long> total_cycle;
 unsigned long long total_prop = 0;
 
-std::vector<std::shared_ptr<acc_type>> get_acc()
+std::vector<ACC*> get_acc()
 {
     if (m_acc.size() != 0)
         return m_acc;
     else
     {
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(32, 32, 32, 119, 2, 119, 40, 60));
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 32, 119, 2, 119, 40, 60));
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(128, 32, 32, 119, 2, 119, 40, 60));
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 64, 119, 2, 119, 40, 60));
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc<wrap_type>(64, 32, 128, 119, 2, 119, 40, 60));
+        m_acc.push_back(create_acc(32, 1, 16, 119, 32, 119, 20, 80)); // core at the vault
+       
     }
     return m_acc;
 }
@@ -501,7 +496,7 @@ CRef Solver::propagate()
 
     //std::map<int, int> generate_relation_map;
 
-    std::map<int, std::shared_ptr<wrap_type>> lit_to_wrap;
+    std::map<int, assign_wrap*> lit_to_wrap;
 
     CRef confl = CRef_Undef;
     int num_props = 0;
@@ -511,7 +506,7 @@ CRef Solver::propagate()
         mc->clear();
     }
     assign_wrap_factory awf;
-    std::shared_ptr<wrap_type> shared_null;
+    //assign_wrap* shared_null;
     while (qhead < trail.size())
     {
 
@@ -522,10 +517,11 @@ CRef Solver::propagate()
         num_props++;
 
         bool is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
-        decltype(shared_null) this_wrap;
+        assign_wrap* this_wrap;
         if (is_first)
         {
-            this_wrap = awf.create(p.x, ws.size(), -1, shared_null, 0); // the first one
+            this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
+            lit_to_wrap[p.x] =this_wrap;
         }
         else
         {
@@ -553,7 +549,7 @@ CRef Solver::propagate()
 
             CRef cr = i->cref;
             Clause &c = ca[cr];
-            this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address
+            this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
 
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -619,25 +615,30 @@ CRef Solver::propagate()
     // now ready to sim
     //get_acc()->print_on(1);
     std::vector<int> this_cycle;
-    for (auto &&mc : get_acc())
-    {
-        this_cycle.push_back(mc->start_sim());
-    }
-    for (unsigned int i = 0; i < total_cycle.size(); i++)
-    {
-        total_cycle[i] += this_cycle[i];
-    }
     if (started)
-        total_prop++;
-
-    if (total_prop % 10000 == 1)
     {
+        for (auto &&mc : get_acc())
+        {
+            printf("mc:%llx\n",mc);
+            mc->print_on(2);
+            this_cycle.push_back(mc->start_sim());
+        }
         for (unsigned int i = 0; i < total_cycle.size(); i++)
         {
-            std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-            std::cout << "total_prop: " << total_prop << std::endl;
-            std::cout << "total_cycle: " << total_cycle[i] << std::endl;
-            get_acc()[i]->print();
+            total_cycle[i] += this_cycle[i];
+        }
+
+        total_prop++;
+
+        if (total_prop % 10000 == 1)
+        {
+            for (unsigned int i = 0; i < total_cycle.size(); i++)
+            {
+                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+                std::cout << "total_prop: " << total_prop << std::endl;
+                std::cout << "total_cycle: " << total_cycle[i] << std::endl;
+                get_acc()[i]->print();
+            }
         }
     }
     if (!started)
@@ -650,6 +651,9 @@ CRef Solver::propagate()
     if (total_prop >= 10000000)
     {
         exit(0);
+    }
+    for(auto value:lit_to_wrap){
+        delete value.second;
     }
     for (auto &&mc : get_acc())
         mc->clear();

@@ -59,7 +59,8 @@
         "mutex": "cpp",
         "thread": "cpp",
         "map": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "list": "cpp"
     },
     "python.pythonPath": "/home/sjq/anaconda3/bin/python"
 }
