@@ -473,39 +473,51 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 using value_type = int;
 using MACC::ACC;
 using MACC::create_acc;
-std::vector<ACC*> m_acc;
+std::vector<ACC *> m_acc;
 std::vector<unsigned long long> total_cycle;
 unsigned long long total_prop = 0;
 
-std::vector<ACC*> get_acc()
+std::vector<ACC *> get_acc()
 {
     if (m_acc.size() != 0)
         return m_acc;
     else
     {
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc(32, 1, 16, 119, 32, 119, 20, 80)); // core at the vault
-       
+        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 30, false, -1)); // core at the vault
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 1, true, 30)); // core at the vault
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 30, false, -1)); // core at the vault
+        total_cycle.push_back(0);
+        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 1, true, 30)); // core at the vault
     }
     return m_acc;
 }
 
+int warmup_times = 0;
+int start_warmup = 0;
+bool real_started = false;
+assign_wrap_factory awf;
 CRef Solver::propagate()
 {
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
     //std::map<int, int> generate_relation_map;
 
-    std::map<int, assign_wrap*> lit_to_wrap;
+    std::map<int, assign_wrap *> lit_to_wrap;
 
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    for (auto &&mc : get_acc())
+    if (real_started)
     {
-        mc->clear();
+        for (auto &&mc : get_acc())
+        {
+            mc->clear();
+        }
     }
-    assign_wrap_factory awf;
+
     //assign_wrap* shared_null;
     while (qhead < trail.size())
     {
@@ -516,23 +528,29 @@ CRef Solver::propagate()
         Watcher *i, *j, *end;
         num_props++;
 
-        bool is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
-        assign_wrap* this_wrap;
-        if (is_first)
+        bool is_first;
+        assign_wrap *this_wrap=nullptr;
+        if (real_started)
         {
-            this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
-            lit_to_wrap[p.x] =this_wrap;
+            is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
+
+            if (is_first)
+            {
+                this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
+                lit_to_wrap[p.x] = this_wrap;
+            }
+            else
+            {
+                this_wrap = lit_to_wrap[p.x];
+                this_wrap->set_watcher_size(ws.size());
+            }
+            for (auto &&mc : get_acc())
+            {
+                mc->push_to_trail(this_wrap);
+            }
+            this_wrap->set_addr((unsigned long long)((Watcher *)ws));
         }
-        else
-        {
-            this_wrap = lit_to_wrap[p.x];
-            this_wrap->set_watcher_size(ws.size());
-        }
-        for (auto &&mc : get_acc())
-        {
-            mc->push_to_trail(this_wrap);
-        }
-        this_wrap->set_addr((unsigned long long)((Watcher *)ws));
+
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
@@ -549,7 +567,8 @@ CRef Solver::propagate()
 
             CRef cr = i->cref;
             Clause &c = ca[cr];
-            this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
+            if (real_started)
+                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
 
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -560,25 +579,34 @@ CRef Solver::propagate()
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
+            if(real_started){
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
+            }
             if (first != blocker && value(first) == l_True)
             {
                 *j++ = w;
                 continue;
             }
-            this_wrap->add_detail(ii - 1, (unsigned long long)(&c[0]));
-            this_wrap->add_detail(ii - 1, (unsigned long long)(&c[1]));
 
+            if (real_started)
+            {
+                //std::cout<<ii-1<<std::endl;
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
+            }
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
-                this_wrap->add_detail(ii - 1, (unsigned long long)(&c[k]));
+                if (real_started)
+                    this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
 
                 if (value(c[k]) != l_False)
                 {
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    this_wrap->add_pushed_list(ii - 1, int(~c[1]));
+                    if (real_started)
+                        this_wrap->add_pushed_list(ii - 1, int(~c[1]));
                     goto NextClause;
                 }
             }
@@ -586,7 +614,8 @@ CRef Solver::propagate()
             *j++ = w;
             if (value(first) == l_False)
             {
-                this_wrap->set_generated_conf(ii - 1);
+                if (real_started)
+                    this_wrap->set_generated_conf(ii - 1);
                 //get_acc()->set_ready();
                 confl = cr;
                 qhead = trail.size();
@@ -598,9 +627,12 @@ CRef Solver::propagate()
             {
                 //first generate new wrap;
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
-                auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
+                if (real_started)
+                {
+                    auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
 
-                lit_to_wrap.insert({first.x, new_wrap});
+                    lit_to_wrap.insert({first.x, new_wrap});
+                }
                 uncheckedEnqueue(first, cr);
             }
 
@@ -615,13 +647,19 @@ CRef Solver::propagate()
     // now ready to sim
     //get_acc()->print_on(1);
     std::vector<int> this_cycle;
-    if (started)
+
+    if (real_started)
     {
+        //std::cout<<"start!"<<total_prop<<std::endl;
         for (auto &&mc : get_acc())
         {
-            printf("mc:%llx\n",mc);
-            mc->print_on(2);
+            //printf("mc:%llx\n",mc);
+            //mc->print_on(2);
             this_cycle.push_back(mc->start_sim());
+        }
+        for (auto value : lit_to_wrap)
+        {
+            delete value.second;
         }
         for (unsigned int i = 0; i < total_cycle.size(); i++)
         {
@@ -640,23 +678,23 @@ CRef Solver::propagate()
                 get_acc()[i]->print();
             }
         }
+        for (auto &&mc : get_acc())
+            mc->clear();
     }
-    if (!started)
+    if (started && !real_started)
     {
-        for (auto &ttc : total_cycle)
+        //std::cout<<"start warm up:"<<warmup_times<<std::endl;
+        warmup_times++;
+        if (warmup_times >= 1000'0000)
         {
-            ttc = 0;
+            real_started = true;
         }
     }
-    if (total_prop >= 10000000)
+    if (total_prop >= 1100'0010)
     {
         exit(0);
     }
-    for(auto value:lit_to_wrap){
-        delete value.second;
-    }
-    for (auto &&mc : get_acc())
-        mc->clear();
+
     return confl;
 }
 

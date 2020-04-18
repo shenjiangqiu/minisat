@@ -33,10 +33,12 @@ enum class EventType
     ReadWatcherList,
     ProcessWatcherList,
     FinishAndSendClause,
+    SendToMemCtr, //only valid on mode 2
     ProcessClause,
     missAccess,
     sendToVault,
-    VaultMissAccess
+    VaultMissAccess,
+    FinishedInMemCtr
 
 };
 enum class HardwareType
@@ -74,9 +76,14 @@ public:
     Event(const EventValue &value, int startTime, int endTime) : start_time(startTime), end_time(endTime), mEventValue(value) {}
     int get_key() const { return end_time; }
     const EventValue &get_value() const { return mEventValue; }
+    EventValue &get_value_ref() { return mEventValue; }
+
     int get_start_time() const { return start_time; }
     int get_end_time() const { return end_time; }
     bool operator<(const Event &other) const { return end_time > other.end_time; }
+    void set_start_time(int t_start_time) { start_time = t_start_time; }
+    void set_end_time(int t_end_time) { end_time = t_end_time; }
+    void set_value(const EventValue &value) { mEventValue = value; }
 
 private:
     int start_time;
@@ -100,6 +107,7 @@ public:
     {
         return m_event_queue.top().get_value();
     }
+    auto get_next() const { return m_event_queue.top(); }
     void clear()
     {
         while (!m_event_queue.empty())
@@ -145,7 +153,9 @@ public:
         int watcher_process_latency,
         int clause_process_latency,
         int vault_memory_access_latency,
-        int cpu_to_vault_latency);
+        int cpu_to_vault_latency,
+        bool mode2 = false,
+        int ctr_latency = -1);
     void print_on(int level)
     {
         print_level = level;
@@ -183,6 +193,14 @@ public:
     int start_sim();
     void handle_vault_process(int vault_index, int end_time);
 
+    //this function simulate:
+    //   1.when the in_order core start to process the clause
+    //   2.it generate the miss event to the memory controller.
+    //   3.when controller recived the request, the process them oneby one,
+    //   4.the controller process event need to calculate the end time of the process of the clause.
+    //   5.No Other Assumption
+    void handle_vault_process_mode2(int vault_index, int end_time);
+
     void push_to_trail(assign_wrap *value)
     {
         value_queue.push_back(value);
@@ -211,10 +229,11 @@ public:
     unsigned long long get_m_hit() const { return m_hit; }
     unsigned long long get_m_hit_res() const { return m_hit_res; }
     void print() const;
-    int assign_to_vault(unsigned long long addr) { return (addr >> 9) & (16 - 1); }
+    int assign_to_vault(unsigned long long addr) { return (addr >> 7) & (c_num - 1); }
 
 private:
     //int vault_memory_access_latency;
+    void mem_ctr_process(Event event, int end_time);
     int w_size;
     int w_num;
     int c_num;
@@ -228,6 +247,7 @@ private:
     int m_using_clause_unit;
 
     EventQueue m_event_queue;
+    bool m_memory_ctr_busy = false;
     int print_level = 0;
     struct vault_waiting_queue_value
     {
@@ -243,7 +263,9 @@ private:
     std::vector<bool> vault_busy;
     int vault_memory_access_latency;
     int cpu_to_vault_latency;
-
+    bool mode2;
+    int ctr_latency;
+    std::queue<Event> mem_ctr_queue;
     unsigned long long global_blocked_clause = 0;
     unsigned long long global_blocked_times = 0;
     unsigned long long waiting_watcher_list = 0;
@@ -268,6 +290,9 @@ ACC *create_acc(int watcher_proc_size,
                 int watcher_process_latency,
                 int clause_process_latency,
                 int vault_memory_access_latency,
-                int cpu_to_vault_latency);
+                int cpu_to_vault_latency,
+                bool mode2,
+                int ctr_latency);
 } // namespace MACC
+
 #endif

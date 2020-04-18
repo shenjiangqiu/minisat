@@ -15,7 +15,7 @@ public:
     void add_pushed_list(int index, int value) { pushed_other_list_items.insert(std::make_pair(index, value)); }
     void add_modified_list(int index, unsigned long long value) { modified_clause_list_items.insert(std::make_pair(index, value)); }
     void add_detail(int index, unsigned long long value) { clause_detail[index].push_back(value); }
-    std::vector<unsigned long long> get_clause_detail(int index) { return clause_detail[index]; }
+    const std::vector<unsigned long long> &get_clause_detail(int index) const { return clause_detail.at(index); }
     void set_watcher_size(int size) { watcher_size = size; }
     int get_watcher_size() const { return watcher_size; }
     auto get_pushed(int index) const { return pushed_other_list_items.at(index); }
@@ -54,9 +54,9 @@ public:
     assign_wrap(assign_wrap &&other) = default;
     assign_wrap(const assign_wrap &other) = default;
     int get_value() const { return value; }
-    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                 //watcher list addr
-    unsigned long long get_addr() const { return addr; }                                        //watcher list addr
-    unsigned long long get_clause_addr(int index) { return modified_clause_list_items[index]; } //clause  addr
+    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                    //watcher list addr
+    unsigned long long get_addr() const { return addr; }                                           //watcher list addr
+    unsigned long long get_clause_addr(int index) const { return modified_clause_list_items.at(index); } //clause addr
 
 private:
     unsigned long long clause_addr;
