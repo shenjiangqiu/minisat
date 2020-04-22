@@ -21,14 +21,15 @@ ACC::ACC(int watcher_proc_size,
                             m_using_clause_unit(0),
                             m_event_queue(),
                             vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
-                            vault_cache(clause_proc_num, cache(4, 512, cache::lru, 256, 256)),
-                            m_cache(4, 64, cache::lru, 256, 256),
+                            vault_cache(clause_proc_num, cache(1<<2, 1<<6, cache::lru, 256, 256)),//16kb
+                            m_cache(1<<3, 1<<6, cache::lru, 256, 256),//16kb
                             vault_busy(clause_proc_num, false),
                             vault_memory_access_latency(vault_memory_access_latency),
                             cpu_to_vault_latency(cpu_to_vault_latency),
                             mode2(mode2),
                             ctr_latency(ctr_latency)
 {
+    //nothing to do
 }
 void ACC::handle_vault_process(int vault_index, int end_time)
 {
@@ -39,7 +40,7 @@ void ACC::handle_vault_process(int vault_index, int end_time)
     spdlog::debug("in handle vaut: vault: {}", vault_index);
     assert(vault_waiting_queue[vault_index].size() > 0);
     spdlog::debug("vault:{},size:{}", vault_index, vault_waiting_queue[vault_index].size());
-    auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index].front();
+    auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index]. front();
     auto watcher_index = value_of_vault_waitng_queue.index;
 
     auto value_of_event = value_of_vault_waitng_queue.value;

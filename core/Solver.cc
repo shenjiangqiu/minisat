@@ -18,18 +18,22 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#include "core/assign_wrap.h"
-#include "core/acc.h"
 #include <math.h>
-//#include <core/acc.h>
-//#include <core/assign_wrap.h>
-
+#include "core/sim_api.h"
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include "core/sim_api.h"
+#include <iostream>
 #include "core/sim_control.h"
-
-#include <map>
+#include <x86intrin.h>
+#include "core/cache_wrap.h"
+uint64_t rdtsc()
+{
+    unsigned int lo, hi;
+    __asm__ __volatile__("rdtsc"
+                         : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
 using namespace Minisat;
 
 //=================================================================================================
@@ -470,105 +474,136 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
-using value_type = int;
-using MACC::ACC;
-using MACC::create_acc;
-std::vector<ACC *> m_acc;
-std::vector<unsigned long long> total_cycle;
-unsigned long long total_prop = 0;
-
-std::vector<ACC *> get_acc()
+unsigned long long total_propagate = 0;
+bool real_started = false;
+bool started = false;
+class TT
 {
-    if (m_acc.size() != 0)
-        return m_acc;
+public:
+    TT(int t)
+    {
+        total_cycle_real = t;
+    }
+    TT() = default;
+    TT &operator++(int a)
+    {
+        if (real_started)
+        {
+            total_cycle_real++;
+        }
+        return *this;
+    }
+    TT &operator+=(const TT &other)
+    {
+        if (real_started)
+        {
+            total_cycle_real += other.total_cycle_real;
+        }
+        return *this;
+    }
+    unsigned long long get()
+    {
+        return total_cycle_real;
+    }
+
+private:
+    unsigned long long total_cycle_real = 0;
+};
+TT total_cycle_in_bcp;
+unsigned long long warmup = 0;
+CacheWrap m_cache_wrap;
+unsigned long long total_hit[3] = {0};
+unsigned long long total_miss = 0;
+void accumulate(TT &to_be_accumulated, CacheWrap &cache, void *addr)
+{
+    auto result = cache.access((unsigned long long)addr);
+    if (result.first == CacheWrap::hit)
+    {
+        total_hit[result.second]++;
+        switch (result.second)
+        {
+        case CacheWrap::L1:
+            to_be_accumulated += 1;
+            break;
+        case CacheWrap::L2:
+            to_be_accumulated += 10;
+            break;
+        case CacheWrap::L3:
+            to_be_accumulated += 60;
+            break;
+        }
+    }
     else
     {
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 30, false, -1)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 1, true, 30)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 30, false, -1)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 1, true, 30)); // core at the vault
+        total_miss++;
+        assert(result.first == CacheWrap::miss);
+        to_be_accumulated += 119;
     }
-    return m_acc;
 }
-
-int warmup_times = 0;
-int start_warmup = 0;
-bool real_started = false;
-assign_wrap_factory awf;
 CRef Solver::propagate()
 {
-    //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
+    if (started and !real_started)
+    {
+        warmup++;
+        if (warmup >= 100'0000)
+        {
+            real_started = true;
+        }
+    }
+    if (real_started)
+    {
+        total_propagate++;
+    }
+    //SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_START_B);
+    if (total_propagate % 10000 == 1)
+    {
+        std::cout << "total_propagate: " << total_propagate << std::endl;
+        std::cout << "cycle: " << total_cycle_in_bcp.get() << std::endl;
+        std::cout << "L1_hit: " << total_hit[0] << std::endl;
+        std::cout << "L2_hit: " << total_hit[1] << std::endl;
 
-    //std::map<int, int> generate_relation_map;
+        std::cout << "L3_hit: " << total_hit[2] << std::endl;
 
-    std::map<int, assign_wrap *> lit_to_wrap;
-
+        std::cout << "miss: " << total_miss << std::endl;
+    }
+    if (total_propagate >= 200'0002)
+    {
+        exit(0);
+    }
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    if (real_started)
-    {
-        for (auto &&mc : get_acc())
-        {
-            mc->clear();
-        }
-    }
 
-    //assign_wrap* shared_null;
     while (qhead < trail.size())
     {
-
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
-        //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
         Watcher *i, *j, *end;
         num_props++;
 
-        bool is_first;
-        assign_wrap *this_wrap=nullptr;
-        if (real_started)
-        {
-            is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
-
-            if (is_first)
-            {
-                this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
-                lit_to_wrap[p.x] = this_wrap;
-            }
-            else
-            {
-                this_wrap = lit_to_wrap[p.x];
-                this_wrap->set_watcher_size(ws.size());
-            }
-            for (auto &&mc : get_acc())
-            {
-                mc->push_to_trail(this_wrap);
-            }
-            this_wrap->set_addr((unsigned long long)((Watcher *)ws));
-        }
-
-        int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
-            ii++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
+            //simulate watcher read
+            accumulate(total_cycle_in_bcp, m_cache_wrap, i);
+            //simulate value read
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(blocker)]);
+
             if (value(blocker) == l_True)
             {
                 *j++ = *i++;
                 continue;
+                if (real_started)
+                {
+                    total_cycle_in_bcp += 2;
+                }
             }
 
             // Make sure the false literal is data[1]:
-
             CRef cr = i->cref;
             Clause &c = ca[cr];
-            if (real_started)
-                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &ca[cr]);
 
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -579,34 +614,30 @@ CRef Solver::propagate()
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
-            if(real_started){
-                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
-            }
+            total_cycle_in_bcp += 2;
+
             if (first != blocker && value(first) == l_True)
             {
                 *j++ = w;
+                total_cycle_in_bcp += 2;
                 continue;
             }
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[0])]);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[1])]);
 
-            if (real_started)
-            {
-                //std::cout<<ii-1<<std::endl;
-                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
-                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
-            }
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
-                if (real_started)
-                    this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
-
+                accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[k])]);
+                total_cycle_in_bcp++;
                 if (value(c[k]) != l_False)
                 {
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    if (real_started)
-                        this_wrap->add_pushed_list(ii - 1, int(~c[1]));
+                    accumulate(total_cycle_in_bcp, m_cache_wrap, &watches[~c[1]]);
+
+                    total_cycle_in_bcp += 2;
                     goto NextClause;
                 }
             }
@@ -614,9 +645,6 @@ CRef Solver::propagate()
             *j++ = w;
             if (value(first) == l_False)
             {
-                if (real_started)
-                    this_wrap->set_generated_conf(ii - 1);
-                //get_acc()->set_ready();
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
@@ -624,17 +652,7 @@ CRef Solver::propagate()
                     *j++ = *i++;
             }
             else
-            {
-                //first generate new wrap;
-                // wrap size=10//that's a arbitrary value, cause we don't know it yet
-                if (real_started)
-                {
-                    auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
-
-                    lit_to_wrap.insert({first.x, new_wrap});
-                }
                 uncheckedEnqueue(first, cr);
-            }
 
         NextClause:;
         }
@@ -642,59 +660,6 @@ CRef Solver::propagate()
     }
     propagations += num_props;
     simpDB_props -= num_props;
-
-    SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
-    // now ready to sim
-    //get_acc()->print_on(1);
-    std::vector<int> this_cycle;
-
-    if (real_started)
-    {
-        //std::cout<<"start!"<<total_prop<<std::endl;
-        for (auto &&mc : get_acc())
-        {
-            //printf("mc:%llx\n",mc);
-            //mc->print_on(2);
-            this_cycle.push_back(mc->start_sim());
-        }
-        for (auto value : lit_to_wrap)
-        {
-            delete value.second;
-        }
-        for (unsigned int i = 0; i < total_cycle.size(); i++)
-        {
-            total_cycle[i] += this_cycle[i];
-        }
-
-        total_prop++;
-
-        if (total_prop % 10000 == 1)
-        {
-            for (unsigned int i = 0; i < total_cycle.size(); i++)
-            {
-                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-                std::cout << "total_prop: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << total_cycle[i] << std::endl;
-                get_acc()[i]->print();
-            }
-        }
-        for (auto &&mc : get_acc())
-            mc->clear();
-    }
-    if (started && !real_started)
-    {
-        //std::cout<<"start warm up:"<<warmup_times<<std::endl;
-        warmup_times++;
-        if (warmup_times >= 1000'0000)
-        {
-            real_started = true;
-        }
-    }
-    if (total_prop >= 1100'0010)
-    {
-        exit(0);
-    }
-
     return confl;
 }
 
@@ -802,8 +767,10 @@ bool Solver::simplify()
 |    all variables are decision variables, this means that the clause set is satisfiable. 'l_False'
 |    if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
+
 lbool Solver::search(int nof_conflicts)
 {
+
     assert(ok);
     int backtrack_level;
     int conflictC = 0;
@@ -812,7 +779,9 @@ lbool Solver::search(int nof_conflicts)
 
     for (;;)
     {
+
         CRef confl = propagate();
+
         if (confl != CRef_Undef)
         {
             // CONFLICT

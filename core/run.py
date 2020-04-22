@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from multiprocessing import Pool
 import subprocess
 
@@ -10,7 +11,7 @@ def run_task(command):
     subprocess.run(command, shell=True)
 
 
-commands = ["/home/sjq/Downloads/minisat_acc/core/minisat_release ~/cnfs/"+c +
+commands = ["/home/sjq/Downloads/sequential/core/minisat_release ~/cnfs/"+c +
             " 2>&1 |tail -n 1000 > result_"+c+".txt" for c in cnfs]
 with Pool(14) as p:
     p.map(run_task, commands)
