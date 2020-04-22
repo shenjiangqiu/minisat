@@ -529,7 +529,7 @@ CRef Solver::propagate()
         num_props++;
 
         bool is_first;
-        assign_wrap *this_wrap=nullptr;
+        assign_wrap *this_wrap = nullptr;
         if (real_started)
         {
             is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
@@ -579,7 +579,8 @@ CRef Solver::propagate()
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
-            if(real_started){
+            if (real_started)
+            {
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
             }
             if (first != blocker && value(first) == l_True)
@@ -678,6 +679,10 @@ CRef Solver::propagate()
                 get_acc()[i]->print();
             }
         }
+        if (total_prop >= 200'0010)
+        {
+            exit(0);
+        }
         for (auto &&mc : get_acc())
             mc->clear();
     }
@@ -685,14 +690,10 @@ CRef Solver::propagate()
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
         warmup_times++;
-        if (warmup_times >= 1000'0000)
+        if (warmup_times >= 100'0000)
         {
             real_started = true;
         }
-    }
-    if (total_prop >= 1100'0010)
-    {
-        exit(0);
     }
 
     return confl;
