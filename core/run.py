@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from multiprocessing import Pool
 import subprocess
 
