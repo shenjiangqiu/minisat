@@ -4,9 +4,6 @@
 #include <algorithm>
 #include <signal.h>
 #include <unistd.h>
-
-#include <memory>
-
 #include <memory>
 #include <iostream>
 #include <queue>
@@ -28,6 +25,35 @@ namespace MACC
  * 
  * 
 **/
+namespace sjq
+{
+template <typename _Tp, typename _Sequence = std::deque<_Tp>>
+
+class queue : public std::queue<_Tp, _Sequence>
+{
+public:
+    const auto &get_container() const
+    {
+        return std::queue<_Tp, _Sequence>::c;
+    }
+    auto cbegin() const
+    {
+        return std::queue<_Tp, _Sequence>::c.cbegin();
+    }
+    auto cend() const
+    {
+        return std::queue<_Tp, _Sequence>::c.cend();
+    }
+    auto begin()
+    {
+        return std::queue<_Tp, _Sequence>::c.begin();
+    }
+    auto end()
+    {
+        return std::queue<_Tp, _Sequence>::c.end();
+    }
+};
+} // namespace sjq
 enum class EventType
 {
     ReadWatcherList,
@@ -156,6 +182,7 @@ public:
         int cpu_to_vault_latency,
         bool mode2 = false,
         int ctr_latency = -1);
+    friend std::ostream& operator<<(std::ostream&,const ACC&);
     void print_on(int level)
     {
         print_level = level;
@@ -175,19 +202,14 @@ public:
     void clear()
     {
         m_ready = false;
-        std::set<assign_wrap *> all;
         value_queue.clear();
         //time_records.clear();
         assert(m_event_queue.empty());
         //m_event_queue.clear();
-        for (int i = 0; i < c_num; i++)
-        {
-            assert(vault_waiting_queue[i].empty());
-        }
-        for (auto slot : vault_busy)
-        {
-            assert(slot == false);
-        }
+
+        assert(std::all_of(vault_waiting_queue, vault_waiting_queue + c_num, [](auto the_queue) { return the_queue.empty(); }));
+
+        assert(std::all_of(vault_busy.begin(), vault_busy.end(), [](bool a) { return a == false; }) == true);
     }
 
     int start_sim();
@@ -283,6 +305,7 @@ private:
     std::vector<unsigned long long> vault_idle_all;
     std::vector<unsigned long long> vault_idle_times;
 };
+
 ACC *create_acc(int watcher_proc_size,
                 int watcher_proc_num,
                 int clause_proc_num,

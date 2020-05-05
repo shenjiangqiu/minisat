@@ -44,7 +44,7 @@ libr:	lib$(LIB)_release.a
 %.o:			CFLAGS +=$(COPTIMIZE) -g -D DEBUG
 %.op:			CFLAGS +=$(COPTIMIZE) -pg -g -D NDEBUG
 %.od:			CFLAGS +=-O0 -g -D DEBUG
-%.or:			CFLAGS +=$(COPTIMIZE) -g -D DEBUG
+%.or:			CFLAGS +=$(COPTIMIZE) -g -D NDEBUG
 
 ## Link options
 $(EXEC):		LFLAGS += -g
@@ -68,35 +68,35 @@ lib$(LIB)_release.a:	$(filter-out */Main.or, $(RCOBJS))
 
 ## Build rule
 %.o %.op %.od %.or:	%.cc
-	@echo Compiling: $(subst $(MROOT)/,,$@)
-	@$(CXX) $(CFLAGS) -c -o $@ $<
+	echo Compiling: $(subst $(MROOT)/,,$@)
+	$(CXX) $(CFLAGS) -c -o $@ $<
 
 ## Linking rules (standard/profile/debug/release)
 $(EXEC) $(EXEC)_profile $(EXEC)_debug $(EXEC)_release $(EXEC)_static:
-	@echo Linking: "$@ ( $(foreach f,$^,$(subst $(MROOT)/,,$f)) )"
-	@$(CXX) $^ $(LFLAGS) -o $@
+	echo Linking: "$@ ( $(foreach f,$^,$(subst $(MROOT)/,,$f)) )"
+	$(CXX) $^ $(LFLAGS) -o $@
 
 ## Library rules (standard/profile/debug/release)
 lib$(LIB)_standard.a lib$(LIB)_profile.a lib$(LIB)_release.a lib$(LIB)_debug.a:
-	@echo Making library: "$@ ( $(foreach f,$^,$(subst $(MROOT)/,,$f)) )"
-	@$(AR) -rcsv $@ $^
+	echo Making library: "$@ ( $(foreach f,$^,$(subst $(MROOT)/,,$f)) )"
+	$(AR) -rcsv $@ $^
 
 ## Library Soft Link rule:
 libs libp libd libr:
-	@echo "Making Soft Link: $^ -> lib$(LIB).a"
-	@ln -sf $^ lib$(LIB).a
+	echo "Making Soft Link: $^ -> lib$(LIB).a"
+	ln -sf $^ lib$(LIB).a
 
 ## Clean rule
 clean:
-	@rm -f $(EXEC) $(EXEC)_profile $(EXEC)_debug $(EXEC)_release $(EXEC)_static \
+	rm -f $(EXEC) $(EXEC)_profile $(EXEC)_debug $(EXEC)_release $(EXEC)_static \
 	  $(COBJS) $(PCOBJS) $(DCOBJS) $(RCOBJS) *.core depend.mk 
 
 ## Make dependencies
 depend.mk: $(CSRCS) $(CHDRS)
-	@echo Making dependencies
-	@$(CXX) $(CFLAGS) -I$(MROOT) \
+	echo Making dependencies
+	$(CXX) $(CFLAGS) -I$(MROOT) \
 	   $(CSRCS) -MM | sed 's|\(.*\):|$(PWD)/\1 $(PWD)/\1r $(PWD)/\1d $(PWD)/\1p:|' > depend.mk
-	@for dir in $(DEPDIR); do \
+	for dir in $(DEPDIR); do \
 	      if [ -r $(MROOT)/$${dir}/depend.mk ]; then \
 		  echo Depends on: $${dir}; \
 		  cat $(MROOT)/$${dir}/depend.mk >> depend.mk; \

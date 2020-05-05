@@ -477,20 +477,20 @@ std::vector<ACC *> m_acc;
 std::vector<unsigned long long> total_cycle;
 unsigned long long total_prop = 0;
 
-std::vector<ACC *> get_acc()
+std::vector<ACC *>& get_acc()
 {
     if (m_acc.size() != 0)
         return m_acc;
     else
     {
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 30, false, -1)); // core at the vault
+        m_acc.push_back(create_acc(16, 128, 1, 119, 16, 119, 60, 30, false, -1)); // core at the vault
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 16, 119, 16, 119, 60, 1, true, 30)); // core at the vault
+        m_acc.push_back(create_acc(16, 128, 4, 119, 16, 119, 60, 30, false, -1)); // core at the vault
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 30, false, -1)); // core at the vault
+        m_acc.push_back(create_acc(16, 128, 16, 119, 16, 119, 60, 30, false, -1)); // core at the vault
         total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 1, 2, 119, 16, 119, 60, 1, true, 30)); // core at the vault
+        m_acc.push_back(create_acc(16, 128, 32, 119, 16, 119, 60, 30, false, -1)); // core at the vault
     }
     return m_acc;
 }
@@ -657,6 +657,7 @@ CRef Solver::propagate()
             //printf("mc:%llx\n",mc);
             //mc->print_on(2);
             this_cycle.push_back(mc->start_sim());
+            //std::cout<<"finishedACC"<<std::endl;
         }
         for (auto value : lit_to_wrap)
         {
@@ -671,6 +672,7 @@ CRef Solver::propagate()
 
         if (total_prop % 10000 == 1)
         {
+            std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < total_cycle.size(); i++)
             {
                 std::cout << "\n\nprint the " << i << " th acc" << std::endl;
@@ -690,7 +692,7 @@ CRef Solver::propagate()
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
         warmup_times++;
-        if (warmup_times >= 100'0000)
+        if (warmup_times >= 10)
         {
             real_started = true;
         }

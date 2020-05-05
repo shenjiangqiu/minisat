@@ -1,6 +1,11 @@
 #include "core/acc.h"
+#include <numeric>
 namespace MACC
 {
+std::ostream &operator<<(std::ostream &os, const ACC &acc)
+{
+    return os << "w_num " << acc.w_num << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency;
+}
 ACC::ACC(int watcher_proc_size,
          int watcher_proc_num,
          int clause_proc_num,
@@ -21,8 +26,8 @@ ACC::ACC(int watcher_proc_size,
                             m_using_clause_unit(0),
                             m_event_queue(),
                             vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
-                            vault_cache(clause_proc_num, cache(1<<2, 1<<6, cache::lru, 256, 256)),//16kb
-                            m_cache(1<<3, 1<<6, cache::lru, 256, 256),//16kb
+                            vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
+                            m_cache(1 << 3, 1 << 6, cache::lru, 256, 256),                             //16kb
                             vault_busy(clause_proc_num, false),
                             vault_memory_access_latency(vault_memory_access_latency),
                             cpu_to_vault_latency(cpu_to_vault_latency),
@@ -40,7 +45,7 @@ void ACC::handle_vault_process(int vault_index, int end_time)
     spdlog::debug("in handle vaut: vault: {}", vault_index);
     assert(vault_waiting_queue[vault_index].size() > 0);
     spdlog::debug("vault:{},size:{}", vault_index, vault_waiting_queue[vault_index].size());
-    auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index]. front();
+    auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index].front();
     auto watcher_index = value_of_vault_waitng_queue.index;
 
     auto value_of_event = value_of_vault_waitng_queue.value;
@@ -70,6 +75,7 @@ void ACC::handle_vault_process(int vault_index, int end_time)
         auto event_value = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index);
         auto event = Event(event_value, end_time, vault_memory_access_latency + end_time);
         //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
+        spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
 
         m_event_queue.push(event);
         end_time += vault_memory_access_latency;
@@ -95,7 +101,7 @@ void ACC::handle_vault_process(int vault_index, int end_time)
             auto evalue = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, detail, vault_index); //fix bug here to cause fill segmentfaut, used to use clause addr here.
             auto event = Event(evalue, end_time, vault_memory_access_latency + end_time);
 
-            spdlog::debug(std::string("VaultCacheMissDetailed addr:") + std::to_string(detail) + std::string(", at cycle:") + std::to_string(end_time));
+            spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", detail, end_time, vault_index);
             end_time += vault_memory_access_latency;
             m_event_queue.push(event);
         }
@@ -181,11 +187,6 @@ void ACC::print() const
     std::cout << "m_hit " << get_m_hit() << std::endl;
     std::cout << "m_miss " << get_m_miss() << std::endl;
     std::cout << "m_hit_res " << get_m_hit_res() << std::endl;
-    for (int i = 0; i < c_num; i++)
-    {
-        //std::cout << vault_waiting_all[i] << " " << vault_waiting_times[i] << std::endl;
-        //std::cout << vault_idle_all[i] << " " << vault_idle_times[i] << std::endl;
-    }
 }
 
 ACC *create_acc(int watcher_proc_size,
@@ -285,16 +286,11 @@ int ACC::start_sim()
     assert(m_event_queue.empty());
     assert(!m_memory_ctr_busy);
     assert(mem_ctr_queue.empty());
-    for (int i = 0; i < c_num; i++)
-    {
-        assert(vault_waiting_queue[i].empty());
-    }
+    assert(std::all_of(vault_waiting_queue, vault_waiting_queue + c_num, [](auto the_queue) { return the_queue.empty(); }));
+    assert(m_using_watcher_unit == 0);
+    assert(m_using_clause_unit == 0);
     static unsigned long long global_times = 0;
     global_times++;
-    if (!(m_using_watcher_unit == 0 && m_using_clause_unit == 0))
-    {
-        throw std::runtime_error("when start to sim, there should be no running task");
-    }
 
     if (value_queue.empty())
         return 0;
@@ -304,7 +300,7 @@ int ACC::start_sim()
     auto first_value = value_queue.front();
     //auto size = value->get_watcher_size();
     //int process_size = 0;
-    std::queue<std::pair<int, assign_wrap *>> waiting_queue;
+    sjq::queue<std::pair<int, assign_wrap *>> waiting_queue;
     waiting_queue.push(std::make_pair(0, first_value));
     int i = 0;
     while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
@@ -364,7 +360,8 @@ int ACC::start_sim()
 
             auto vault_index = event_value.vault_index;
             auto vault_addr = event_value.addr;
-            spdlog::debug(std::string("fill Vault:addr: ") + std::to_string(vault_addr) + std::string(",at cycle:") + std::to_string(end_time));
+            //spdlog::debug("fill Vault:addr: " ",at cycle:");
+            spdlog::debug("fill Vault: addr :{},cycle :{},vault:{}", vault_addr, end_time, vault_index);
 
             vault_cache[vault_index].fill(vault_addr);
             break;
@@ -511,14 +508,10 @@ int ACC::start_sim()
                 if (m_using_watcher_unit >= w_num && !waiting_queue.empty())
                 {
                     int total_size = 0;
-                    int size = waiting_queue.size();
-                    for (int i = 0; i < size; i++)
-                    {
-                        auto temp = waiting_queue.front();
-                        total_size += temp.second->get_watcher_size() - temp.first;
-                        waiting_queue.pop();
-                        waiting_queue.push(temp);
-                    }
+                    total_size = std::accumulate(waiting_queue.begin(), waiting_queue.end(), 0,
+                                                 [](int size, auto &element) {
+                                                     return size + element.second->get_watcher_size() - element.first;
+                                                 });
                     waiting_watcher_list += (total_size + w_size - 1) / w_size;
                     waiting_watcher_times++;
                 }

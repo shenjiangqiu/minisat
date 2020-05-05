@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/core/minisat_debug",
-            "args": ["/home/sjq/cnfs/ASG_96_len112_known_last12_2.cnf"],
+            "args": ["/home/sjq/cnfs/b1904P1-8x8c6h5SAT.cnf"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
