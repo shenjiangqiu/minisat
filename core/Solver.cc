@@ -28,7 +28,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Solver.h"
 #include "core/sim_api.h"
 #include "core/sim_control.h"
-
+#include "core/read_config.h"
 #include <map>
 using namespace Minisat;
 
@@ -477,20 +477,32 @@ std::vector<ACC *> m_acc;
 std::vector<unsigned long long> total_cycle;
 unsigned long long total_prop = 0;
 
-std::vector<ACC *>& get_acc()
+std::vector<ACC *> &get_acc()
 {
     if (m_acc.size() != 0)
         return m_acc;
     else
     {
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 128, 1, 119, 16, 119, 60, 30, false, -1)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 128, 4, 119, 16, 119, 60, 30, false, -1)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 128, 16, 119, 16, 119, 60, 30, false, -1)); // core at the vault
-        total_cycle.push_back(0);
-        m_acc.push_back(create_acc(16, 128, 32, 119, 16, 119, 60, 30, false, -1)); // core at the vault
+        auto configs = sjq::parse_file("m_config.conf");
+        std::for_each(configs.begin(), configs.end(), [](auto &c) {
+            total_cycle.push_back(0);
+            m_acc.push_back(create_acc(c.watcher_proc_size,
+                                       c.watcher_proc_num,
+                                       c.clause_proc_num,
+                                       c.miss_latency,
+                                       c.watcher_process_latency,
+                                       c.clause_process_latency,
+                                       c.vault_memory_access_latency,
+                                       c.cpu_to_vault_latency,
+                                       c.mode2,
+                                       c.ctr_latency));
+        });
+        std::cout<<"finished parse the arges"<<std::endl;
+        std::for_each(m_acc.begin(), m_acc.end(), [](auto &pacc) {
+            std::cout << *pacc << std::endl;
+        });
+        std::cout<<"----------------------------"<<std::endl;
+
     }
     return m_acc;
 }
