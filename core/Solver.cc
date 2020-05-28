@@ -693,7 +693,7 @@ CRef Solver::propagate()
                 get_acc()[i]->print();
             }
         }
-        if (total_prop >= 200'0010)
+        if (total_prop >= 2000010)
         {
             exit(0);
         }
