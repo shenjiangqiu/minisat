@@ -686,7 +686,7 @@ CRef Solver::propagate()
 
         total_prop++;
 
-        if (total_prop % 100 == 1)
+        if (total_prop % 10000 == 1)
         {
             std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < total_cycle.size(); i++)
@@ -697,7 +697,7 @@ CRef Solver::propagate()
                 get_acc()[i]->print();
             }
         }
-        if (total_prop >= 2000)
+        if (total_prop >= 2000000)
         {
             exit(0);
         }
@@ -708,7 +708,7 @@ CRef Solver::propagate()
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
         warmup_times++;
-        if (warmup_times >= 10)
+        if (warmup_times >= 1000000)
         {
             real_started = true;
         }

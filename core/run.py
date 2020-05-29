@@ -12,6 +12,6 @@ def run_task(command):
 
 
 commands = ["/home/sjq/Downloads/minisat_acc/core/minisat_release ~/cnfs/"+c +
-            " 2>&1 |tail -n 1000 > result_"+c+".txt" for c in cnfs]
+            " 2>&1 |tail -n 100000 > result_"+c+".txt" for c in cnfs]
 with Pool(14) as p:
     p.map(run_task, commands)

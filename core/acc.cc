@@ -4,7 +4,7 @@ namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
     {
-        return os << "w_num " << acc.w_num << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
+        return os << "w_num " << acc.w_num<<",miss latency: "<<acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
     }
     ACC::ACC(int watcher_proc_size,
              int watcher_proc_num,
