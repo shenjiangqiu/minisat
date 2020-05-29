@@ -1,0 +1,1 @@
+awk '{print $1"-"$3}' acc_config.out

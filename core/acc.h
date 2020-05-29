@@ -56,6 +56,7 @@ namespace MACC
     } // namespace sjq
     enum class EventType
     {
+        FinishedReadClause,//first read clause, this shoud run in parallel, and then send processclause , this should be in sequencial
         ReadWatcherList,
         ProcessWatcherList,
         FinishAndSendClause,
@@ -270,8 +271,7 @@ namespace MACC
         int clause_process_latency;
         int m_using_watcher_unit;
         int m_using_clause_unit;
-        std::vector<bool> c_busy;
-        std::vector<int> next_c;
+
         EventQueue m_event_queue;
         bool m_memory_ctr_busy = false;
         int print_level = 0;
@@ -309,6 +309,10 @@ namespace MACC
         std::vector<unsigned long long> vault_idle_all;
         std::vector<unsigned long long> vault_idle_times;
         std::vector<bool> watcher_busy;
+        std::vector<bool> c_busy;
+        std::vector<int> next_c;
+        std::vector<std::queue<std::pair<int,assign_wrap*>>> clause_read_waiting_queue;
+        unsigned long long vault_tasks=0;
         //hardware queues
     };
 

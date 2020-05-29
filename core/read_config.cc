@@ -23,6 +23,7 @@ std::vector<sjq::config> parse_file(const std::string &filename)
     auto file_stream = std::ifstream(filename);
     if (!file_stream)
     {
+        throw std::runtime_error("no config file find");
         return std::vector<sjq::config>();
     }
     auto result = std::vector<sjq::config>();

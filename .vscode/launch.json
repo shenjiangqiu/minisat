@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/core/minisat_debug",
             "args": ["/home/sjq/cnfs/b1904P1-8x8c6h5SAT.cnf"],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/core",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",

@@ -483,6 +483,7 @@ std::vector<ACC *> &get_acc()
         return m_acc;
     else
     {
+
         auto configs = sjq::parse_file("m_config.conf");
         std::for_each(configs.begin(), configs.end(), [](auto &c) {
             total_cycle.push_back(0);
@@ -537,6 +538,9 @@ CRef Solver::propagate()
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
+        if(ws.size()==0){
+            continue;
+        }
         Watcher *i, *j, *end;
         num_props++;
 
@@ -682,7 +686,7 @@ CRef Solver::propagate()
 
         total_prop++;
 
-        if (total_prop % 10000 == 1)
+        if (total_prop % 100 == 1)
         {
             std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < total_cycle.size(); i++)
@@ -693,7 +697,7 @@ CRef Solver::propagate()
                 get_acc()[i]->print();
             }
         }
-        if (total_prop >= 2000010)
+        if (total_prop >= 2000)
         {
             exit(0);
         }

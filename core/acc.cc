@@ -27,20 +27,25 @@ namespace MACC
                                 m_event_queue(),
                                 vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
                                 vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
-                                m_cache(1 << 3, 1 << 6, cache::lru, 256, 256),                             //16kb
+                                m_cache(1<<4, 1 << 15, cache::lru, 256, 256),   //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
                                 vault_memory_access_latency(vault_memory_access_latency),
                                 cpu_to_vault_latency(cpu_to_vault_latency),
                                 mode2(mode2),
-                                ctr_latency(ctr_latency)
+                                ctr_latency(ctr_latency),
+                                watcher_busy(w_num, false),
+                                c_busy(c_num, false),
+                                next_c(w_num, 0),
+                                clause_read_waiting_queue(c_num)
     {
         //nothing to do
     }
-    void ACC::handle_vault_process(int vault_index, int end_time)
+    void ACC::handle_vault_process(int vault_index, int end_time) //keep busy until the clause read back
     {
+        throw std::runtime_error("Need modification here, don't come!!!");
         spdlog::debug("handle_vault_process mode1,vault:{},end_time:{}", vault_index, end_time);
-        assert(!vault_busy[vault_index]);
-        vault_busy[vault_index] = true;
+        //assert(!vault_busy[vault_index]);
+        //vault_busy[vault_index] = true;
 
         spdlog::debug("in handle vaut: vault: {}", vault_index);
         assert(vault_waiting_queue[vault_index].size() > 0);
@@ -54,10 +59,10 @@ namespace MACC
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         auto size_of_detail = clause_detail.size();
-        auto event_value = EventValue(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index);
+        auto event_value = EventValue(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         event_value.type = EventType::ProcessClause;
         event_value.index = watcher_index;
-        auto result = vault_cache[vault_index].access(clause_addr);
+        auto result = m_cache.access(clause_addr);
         //
         auto latency = 0;
         //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
@@ -72,7 +77,7 @@ namespace MACC
         if (result == cache::miss)
         {
             //create miss event
-            auto event_value = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index);
+            auto event_value = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
             auto event = Event(event_value, end_time, vault_memory_access_latency + end_time);
             //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
             spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
@@ -84,7 +89,7 @@ namespace MACC
         for (unsigned long i = 0; i < size_of_detail; i++)
         {
             auto detail = clause_detail[i];
-            auto result = vault_cache[vault_index].access(detail);
+            auto result = m_cache.access(detail);
             //here need to consider the remote modification
             // but currently , we only consider the original clause miss times
             if (result == cache::hit)
@@ -98,7 +103,7 @@ namespace MACC
             }
             if (result == cache::miss)
             {
-                auto evalue = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, detail, vault_index); //fix bug here to cause fill segmentfaut, used to use clause addr here.
+                auto evalue = EventValue(EventType::VaultMissAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, detail, vault_index, -1); //fix bug here to cause fill segmentfaut, used to use clause addr here.
                 auto event = Event(evalue, end_time, vault_memory_access_latency + end_time);
 
                 spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", detail, end_time, vault_index);
@@ -119,11 +124,8 @@ namespace MACC
     {
         spdlog::debug("handle_vault_process mode2,vault:{},end_time:{}", vault_index, end_time);
 
-        assert(!vault_busy[vault_index]);
-        vault_busy[vault_index] = true;
-
         spdlog::debug("in handle vaut: vault: {}", vault_index);
-        assert(vault_waiting_queue[vault_index].size() > 0);
+        assert(vault_waiting_queue[vault_index].size() == 1);
         spdlog::debug("vault:{},size:{}", vault_index, vault_waiting_queue[vault_index].size());
         auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index].front();
         vault_waiting_queue[vault_index].pop();
@@ -135,10 +137,10 @@ namespace MACC
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
-        auto event_value = EventValue(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index);
+        auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
-        auto result = vault_cache[vault_index].access(clause_addr);
+        auto result = m_cache.access(clause_addr);
         //
         auto latency = 0;
         //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
@@ -153,22 +155,16 @@ namespace MACC
 
             //vault_busy[vault_index] = true;// BUG here, at this point, it's not free. need to finished the process then it's free!
         }
-        else if (result == cache::miss) // the latency of
+        else // the latency of //miss and hit reserved
         {
             // send miss request to memory controller
             // No event for process_clause generated here
 
-            auto event_value = EventValue(EventType::SendToMemCtr, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index);
-            auto event = Event(event_value, end_time, end_time + ctr_latency);
+            auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
+            auto event = Event(event_value, end_time, end_time + miss_latency);
             m_event_queue.push(event);
             return;
             //still busy
-        }
-        else
-        { //hit res
-            //because this is in-order core, that can't happen in private l1 cache. so it's an error;
-            spdlog::error("ERROR, inorder core can't be hit_res,Vault:{},addr:{}", vault_index, clause_addr);
-            throw std::runtime_error("ERROR can't reach here");
         }
     }
 
@@ -212,6 +208,11 @@ namespace MACC
         int start = waiting_queue.front().first;
 
         int total = waiting_queue.front().second->get_watcher_size();
+        if (total == 0)
+        {
+            waiting_queue.pop();
+            return;
+        }
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
         auto result = m_cache.access(addr);
@@ -250,14 +251,14 @@ namespace MACC
             if (print_level >= 2)
                 std::cout << event << std::endl;
             m_event_queue.push(event);
-            watcher_busy[watcher_index]=true;
+            watcher_busy[watcher_index] = true;
             m_using_watcher_unit++;
         }
         else
         {
             //only print the last one
 
-            auto evalue = EventValue(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, -1,-1,-1,watcher_index);
+            auto evalue = EventValue(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
             auto event = Event(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
             if (print_level >= 1)
             {
@@ -268,13 +269,14 @@ namespace MACC
                 std::cout << event << std::endl;
             m_event_queue.push(event);
             waiting_queue.pop(); //finished
-            watcher_busy[watcher_index]=true;
+            watcher_busy[watcher_index] = true;
 
             m_using_watcher_unit++;
         }
     }
     void ACC::mem_ctr_process(MACC::Event event, int end_time)
     {
+        throw std::runtime_error("Can't be here");
         assert(!m_memory_ctr_busy);
         m_memory_ctr_busy = true;
         auto new_event = event;
@@ -292,6 +294,9 @@ namespace MACC
         assert(std::all_of(vault_waiting_queue, vault_waiting_queue + c_num, [](auto the_queue) { return the_queue.empty(); }));
         assert(m_using_watcher_unit == 0);
         assert(m_using_clause_unit == 0);
+        assert(std::all_of(watcher_busy.begin(), watcher_busy.end(), [](auto busy) { return busy == false; }));
+        assert(std::all_of(c_busy.begin(), c_busy.end(), [](auto busy) { return busy == false; }));
+        assert(std::all_of(clause_read_waiting_queue.begin(), clause_read_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
         static unsigned long long global_times = 0;
         global_times++;
 
@@ -309,18 +314,11 @@ namespace MACC
         while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
         {
             int watcher_index = -1;
-            for (int w_i = 0; w_i < w_num; w_i++)
-            {
-                if (watcher_busy[w_i])
-                {
-                    continue;
-                }
-                else
-                {
-                    watcher_index = w_i;
-                }
-            }
-            assert(watcher_index != -1);
+            auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
+            assert(found != watcher_busy.end());
+            watcher_index = std::distance(watcher_busy.begin(), found);
+            assert(watcher_index >= 0 and watcher_index < w_num);
+
             handle_new_watch_list(waiting_queue, i, watcher_index);
             i++;
         }
@@ -339,6 +337,7 @@ namespace MACC
             {
             case EventType::FinishedInMemCtr:
             {
+                throw std::runtime_error("cant be here right now");
                 m_memory_ctr_busy = false;
                 spdlog::debug("FinishedInMemCtr:{},value:{},index:{}", end_time, value_of_event->get_value(), event_value.index);
                 //need generate process clause event;
@@ -360,6 +359,7 @@ namespace MACC
             }
             case EventType::SendToMemCtr:
             {
+                throw std::runtime_error("can't be here right now");
                 spdlog::debug("SendToMemCtr:{},value:{},index:{}", end_time, value_of_event->get_value(), event_value.index);
                 auto event = this_event;
                 mem_ctr_queue.push(event);
@@ -379,7 +379,7 @@ namespace MACC
                 //spdlog::debug("fill Vault:addr: " ",at cycle:");
                 spdlog::debug("fill Vault: addr :{},cycle :{},vault:{}", vault_addr, end_time, vault_index);
 
-                vault_cache[vault_index].fill(vault_addr);
+                m_cache.fill(vault_addr);
                 break;
             }
             case EventType::missAccess:
@@ -402,8 +402,8 @@ namespace MACC
             }
             case EventType::ProcessWatcherList:
             {
-                auto watcher_index=event_value.watcher_index;
-                assert(watcher_index>=0 and watcher_index<w_num);
+                auto watcher_index = event_value.watcher_index;
+                assert(watcher_index >= 0 and watcher_index < w_num);
                 spdlog::debug("ProcessWatcherList:{}", end_time);
                 //finished process watcher_list, start to generate new clause access event
                 //fist try to send clause reading request
@@ -418,13 +418,13 @@ namespace MACC
                     //auto clause_addr = value->get_clause_addr();
 
                     auto clause_addr = lower->second;
-                    auto num_c_p_w=c_num/w_num;
-                    assert(c_num % w_num==0);
+                    auto num_c_p_w = c_num / w_num;
+                    assert(c_num % w_num == 0);
 
-                    auto vault_index=next_c[watcher_index];
-                    next_c[watcher_index]=(vault_index+1)%num_c_p_w;//round
+                    auto vault_index = next_c[watcher_index];
+                    next_c[watcher_index] = (vault_index + 1) % num_c_p_w; //round
 
-                    vault_index+=watcher_index*num_c_p_w;
+                    vault_index += watcher_index * num_c_p_w;
 
                     //auto vault_index = assign_to_vault(clause_addr);
                     //vault_waiting_queue[vault_index].push(std::make_tuple(lower->first,value_of_event,clause_addr); // this clause access is generated by this event
@@ -454,18 +454,18 @@ namespace MACC
 
                 //first to find any watcher_list_to process
                 m_using_watcher_unit--;
-                auto watcher_index=event_value.watcher_index;
-                assert(watcher_index!=-1 && watcher_index>=0 && watcher_index<w_num);
-                watcher_busy[watcher_index]=false;
-                
+                //auto watcher_index=event_value.watcher_index;
+                assert(watcher_index != -1 && watcher_index >= 0 && watcher_index < w_num);
+                watcher_busy[watcher_index] = false;
+
                 if (waiting_queue.empty())
                 {
                     idel_watcher_times++;
                     idel_watcher_total += w_num - m_using_watcher_unit;
                 }
-                if (!waiting_queue.empty())// bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
+                if (!waiting_queue.empty()) // bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
                 {
-                    handle_new_watch_list(waiting_queue, end_time,watcher_index);
+                    handle_new_watch_list(waiting_queue, end_time, watcher_index);
                 }
 
                 break;
@@ -479,27 +479,26 @@ namespace MACC
                 //auto pushed_to_others = value_of_event->get_pushed_to_others(index); // modified other's watcher list
                 //auto clause_detail = value_of_event->get_clause_detail(index); //vector about detailed read value; content type: unsigned long long
 
-                auto vault_index = assign_to_vault(clause_addr);
+                auto vault_index = event_value.vault_index;
+                assert(vault_index >= 0 and vault_index < c_num);
                 //auto value_of_vault_waitng_queue=std::make_tuple(index, value_of_event, clause_addr);
                 auto value_of_vault_waitng_queue = vault_waiting_queue_value(index, value_of_event, clause_addr);
                 vault_waiting_queue[vault_index].push(value_of_vault_waitng_queue);
 
                 spdlog::debug(std::string("recived in vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
                 spdlog::debug("event queue size:{} , vault queue size:{}", m_event_queue.size(), vault_waiting_queue[vault_index].size());
-                if (!vault_busy[vault_index]) //process the clause
+
+                if (!mode2)
                 {
-                    if (!mode2)
-                    {
-                        spdlog::debug(std::string("process in Vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
+                    spdlog::debug(std::string("process in Vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
 
-                        handle_vault_process(vault_index, end_time);
-                    }
-                    else
-                    { // mode 2, only one memory controller exists,
-                        spdlog::debug(std::string("process in Vault mode2:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
+                    handle_vault_process(vault_index, end_time);
+                }
+                else
+                { // mode 2, only one memory controller exists,
+                    spdlog::debug(std::string("process in Vault mode2:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
 
-                        handle_vault_process_mode2(vault_index, end_time);
-                    }
+                    handle_vault_process_mode2(vault_index, end_time);
                 }
 
                 break;
@@ -507,6 +506,26 @@ namespace MACC
             case EventType::FinishAndSendClause:
                 //in this case,
                 break;
+            case EventType::FinishedReadClause:
+            {
+                auto vault_index = event_value.vault_index;
+                clause_read_waiting_queue[vault_index].push(std::make_pair(event_value.index, value_of_event));
+
+                if (!vault_busy[vault_index])
+                {
+                    auto next_task = clause_read_waiting_queue[vault_index].front();
+                    clause_read_waiting_queue[vault_index].pop();
+
+                    event_value.type = EventType::ProcessClause;
+                    event_value.index = next_task.first;
+                    event_value.value = next_task.second;
+
+                    auto event = Event(event_value, end_time, end_time + 12);
+                    vault_busy[vault_index] = true;
+                    m_event_queue.push(event);
+                }
+                break;
+            }
             case EventType::ProcessClause: //need to modified. now get the task from the vault_waiting_queue
             {
                 spdlog::debug("ProcessClause finished,cycle:{}", end_time);
@@ -532,7 +551,13 @@ namespace MACC
                     int i = 0;
                     while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
                     {
-                        handle_new_watch_list(waiting_queue, end_time + i);
+                        int watcher_index = -1;
+                        auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
+                        assert(found != watcher_busy.end());
+                        watcher_index = std::distance(watcher_busy.begin(), found);
+                        assert(watcher_index >= 0 and watcher_index < w_num);
+
+                        handle_new_watch_list(waiting_queue, end_time + i, watcher_index);
                         i++;
                     }
                     if (m_using_watcher_unit >= w_num && !waiting_queue.empty())
@@ -547,17 +572,21 @@ namespace MACC
                     }
                 }
 
-                if (!vault_waiting_queue[vault_index].empty())
+                assert(vault_waiting_queue[vault_index].empty()); // bug here, need to have seperate queues for the value
+                if (!clause_read_waiting_queue[vault_index].empty())
                 {
-                    spdlog::debug(std::string("process in Vault:") + std::to_string(vault_index) + ",at time:" + std::to_string(end_time));
-                    if (!mode2)
-                        handle_vault_process(vault_index, end_time);
-                    else
-                    {
-                        handle_vault_process_mode2(vault_index, end_time);
-                    }
-                }
+                    auto next_task = clause_read_waiting_queue[vault_index].front();
 
+                    clause_read_waiting_queue[vault_index].pop();
+
+                    event_value.type = EventType::ProcessClause;
+                    event_value.index = next_task.first;
+                    event_value.value = next_task.second;
+
+                    auto event = Event(event_value, end_time, end_time + 12);
+                    vault_busy[vault_index] = true;
+                    m_event_queue.push(event);
+                }
                 break;
             }
             } // switch
@@ -594,6 +623,9 @@ namespace MACC
             break;
         case EventType::FinishedInMemCtr:
             os << "FinishedInMemCtr";
+            break;
+        case EventType::FinishedReadClause:
+            os << "FinishedReadClause";
             break;
         }
         os << std::endl;
