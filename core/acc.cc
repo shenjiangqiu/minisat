@@ -326,7 +326,7 @@ namespace MACC
 
         //second process the event queue,
         int last_cycle = 0;
-        int global_end_time;
+        int global_end_time=0;
         while (!m_event_queue.empty() or !waiting_queue.empty())
         {
             if (m_event_queue.empty())
