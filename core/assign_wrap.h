@@ -25,7 +25,7 @@ public:
         auto end_iter = modified_clause_list_items.upper_bound(end);
         return std::make_pair(start_iter, end_iter);
     }
-    int get_level() const { return level; }
+    unsigned int get_level() const { return level; }
     void set_generated_conf(int conf) { generated_conf = conf; }
     int get_generated_conf() const { return generated_conf; }
     //auto& get_generated_assignments() const { return generated_assignments; }
@@ -41,7 +41,7 @@ public:
                 int watcher_size,
                 int depend_id,
                 assign_wrap *depend_value,
-                int level = 0) : value(value),
+                unsigned level = 0) : value(value),
                                  watcher_size(watcher_size),
                                  depend_id(depend_id),
                                  depend_value(depend_value),
@@ -74,7 +74,7 @@ private:
 
     int clause_size;
 
-    int level;
+    unsigned level;
     unsigned long long addr;
 };
 template <typename SharedPointType>

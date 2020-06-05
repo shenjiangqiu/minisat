@@ -4,7 +4,7 @@ namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
     {
-        return os << "w_num " << acc.w_num<<",miss latency: "<<acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
+        return os << "w_num " << acc.w_num << ",miss latency: " << acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
     }
     ACC::ACC(int watcher_proc_size,
              int watcher_proc_num,
@@ -27,7 +27,7 @@ namespace MACC
                                 m_event_queue(),
                                 vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
                                 vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
-                                m_cache(1<<4, 1 << 15, cache::lru, 256, 256),   //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
+                                m_cache(1 << 4, 1 << 15, cache::lru, 256, 256),                            //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
                                 vault_memory_access_latency(vault_memory_access_latency),
                                 cpu_to_vault_latency(cpu_to_vault_latency),
@@ -322,12 +322,35 @@ namespace MACC
             handle_new_watch_list(waiting_queue, i, watcher_index);
             i++;
         }
+        current_running_level = first_value->get_level();
 
         //second process the event queue,
         int last_cycle = 0;
-        while (!m_event_queue.empty())
+        int global_end_time;
+        while (!m_event_queue.empty() or !waiting_queue.empty())
         {
+            if (m_event_queue.empty())
+            {
+                spdlog::debug("sycn!global_sync_time:{}", global_end_time);
+                //std::cout << "sync!________________" << std::endl;
+                assert(!waiting_queue.empty() and m_using_watcher_unit == 0);
+                i = 0;
+                current_running_level++;
+
+                while (m_using_watcher_unit < w_num and !waiting_queue.empty())
+                {
+                    int watcher_index = -1;
+                    auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
+                    assert(found != watcher_busy.end());
+                    watcher_index = std::distance(watcher_busy.begin(), found);
+                    assert(watcher_index >= 0 and watcher_index < w_num);
+
+                    handle_new_watch_list(waiting_queue, global_end_time + i, watcher_index);
+                }
+            }
             auto end_time = m_event_queue.get_next_time();
+            global_end_time = end_time;
+
             auto event_value = m_event_queue.get_next_event();
             auto value_of_event = event_value.value;
             auto this_event = m_event_queue.get_next();
@@ -335,6 +358,10 @@ namespace MACC
             last_cycle = end_time;
             switch (event_value.type)
             {
+            case EventType::FinishedModWatcherList:
+            {
+                break;
+            }
             case EventType::FinishedInMemCtr:
             {
                 throw std::runtime_error("cant be here right now");
@@ -463,7 +490,7 @@ namespace MACC
                     idel_watcher_times++;
                     idel_watcher_total += w_num - m_using_watcher_unit;
                 }
-                if (!waiting_queue.empty()) // bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
+                if (!waiting_queue.empty() and waiting_queue.front().second->get_level() == current_running_level) // bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
                 {
                     handle_new_watch_list(waiting_queue, end_time, watcher_index);
                 }
@@ -530,7 +557,7 @@ namespace MACC
             {
                 spdlog::debug("ProcessClause finished,cycle:{}", end_time);
                 auto vault_index = event_value.vault_index;
-
+                //std::cout<<value_of_event->get_level()<<std::endl;
                 vault_busy[vault_index] = false; //correct, now set the busy to false
 
                 //in this case, we need to generate new event, and let waiting queue to be processed
@@ -548,9 +575,20 @@ namespace MACC
                 {
 
                     waiting_queue.push(std::make_pair(0, generated));
+                    assert(generated->get_level() == current_running_level + 1);
+                    std::cout << generated->get_level() << std::endl;
+                    //change here, we shouldn't execut it immediatly, we should just waiting the sync point;
+                    /*
                     int i = 0;
-                    while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
+                    while (!waiting_queue.empty() && m_using_watcher_unit < w_num ) 
                     {
+                        auto next=waiting_queue.front();
+                        auto level=next.second->get_level();
+                        if(level==current_running_level){
+                            
+                        }else{
+                            throw std::runtime_error("should be the next level");
+                        }
                         int watcher_index = -1;
                         auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
                         assert(found != watcher_busy.end());
@@ -560,6 +598,7 @@ namespace MACC
                         handle_new_watch_list(waiting_queue, end_time + i, watcher_index);
                         i++;
                     }
+                    
                     if (m_using_watcher_unit >= w_num && !waiting_queue.empty())
                     {
                         int total_size = 0;
@@ -570,6 +609,7 @@ namespace MACC
                         waiting_watcher_list += (total_size + w_size - 1) / w_size;
                         waiting_watcher_times++;
                     }
+                    */
                 }
 
                 assert(vault_waiting_queue[vault_index].empty()); // bug here, need to have seperate queues for the value
@@ -597,6 +637,9 @@ namespace MACC
     {
         switch (type)
         {
+        case EventType::FinishedModWatcherList:
+            os << "FinishedModWatcherList";
+            break;
         case EventType::ReadWatcherList:
             os << "ReadWatcherList";
             break;

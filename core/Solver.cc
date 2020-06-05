@@ -499,6 +499,9 @@ std::vector<ACC *> &get_acc()
                                        c.ctr_latency));
         });
         std::cout<<"finished parse the arges"<<std::endl;
+        if(m_acc.empty()){
+            throw std::runtime_error("the config is empty");
+        }
         std::for_each(m_acc.begin(), m_acc.end(), [](auto &pacc) {
             std::cout << *pacc << std::endl;
         });
@@ -708,7 +711,7 @@ CRef Solver::propagate()
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
         warmup_times++;
-        if (warmup_times >= 1000000)
+        if (warmup_times >= 20)
         {
             real_started = true;
         }
