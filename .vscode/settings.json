@@ -65,7 +65,8 @@
         "concepts": "cpp",
         "ranges": "cpp",
         "shared_mutex": "cpp",
-        "stop_token": "cpp"
+        "stop_token": "cpp",
+        "valarray": "cpp"
     },
     "python.pythonPath": "/home/sjq/anaconda3/bin/python"
 }

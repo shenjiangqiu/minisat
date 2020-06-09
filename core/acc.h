@@ -173,6 +173,41 @@ namespace MACC
         int num_cycles_for_clause;
     };
 
+    class BandWidthManager
+    {
+    public:
+        BandWidthManager(unsigned total_bandwidth) : current_bandwidth(0), total_bandwidth(total_bandwidth)
+        {
+        }
+        bool empty(){
+            return current_bandwidth==0;
+        }
+        void print()
+        {
+            std::cout << "current usage:" << current_bandwidth << std::endl;
+            std::cout << "total usage:" << total_bandwidth << std::endl;
+        }
+        bool tryAddUse(unsigned added_bandwidth)
+        {
+            if (current_bandwidth + added_bandwidth > total_bandwidth)
+            {
+                return false;
+            }
+            current_bandwidth += added_bandwidth;
+            return true;
+        }
+        void delUse(unsigned deled_bandwidth)
+        {
+            current_bandwidth -= deled_bandwidth;
+        }
+
+    private:
+        unsigned current_bandwidth;
+        const unsigned total_bandwidth;
+        friend std::ostream & operator<<(std::ostream &os, BandWidthManager &);
+    };
+    std::ostream &operator<<(std::ostream &os, BandWidthManager &bm);
+
     class ACC
     {
     public:
@@ -187,6 +222,7 @@ namespace MACC
             int cpu_to_vault_latency,
             bool mode2 = false,
             int ctr_latency = -1);
+        ~ACC();
         friend std::ostream &operator<<(std::ostream &, const ACC &);
         void print_on(int level)
         {
@@ -212,7 +248,7 @@ namespace MACC
             assert(m_event_queue.empty());
             //m_event_queue.clear();
 
-            assert(std::all_of(vault_waiting_queue, vault_waiting_queue + c_num, [](auto the_queue) { return the_queue.empty(); }));
+            assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &the_queue) { return the_queue.empty(); }));
 
             assert(std::all_of(vault_busy.begin(), vault_busy.end(), [](bool a) { return a == false; }) == true);
         }
@@ -259,6 +295,9 @@ namespace MACC
         int assign_to_vault(unsigned long long addr) { return (addr >> 7) & (c_num - 1); }
 
     private:
+        BandWidthManager l3_bandwidth_manager;
+        BandWidthManager dram_bandwith_manager;
+        std::vector<int> clause_buffer_size;
         //int vault_memory_access_latency;
         void mem_ctr_process(Event event, int end_time);
         int w_size;
@@ -283,7 +322,7 @@ namespace MACC
             assign_wrap *value;
             unsigned long long addr;
         };
-        std::queue<vault_waiting_queue_value> *vault_waiting_queue;
+        std::vector<std::queue<vault_waiting_queue_value>> vault_waiting_queue;
         std::vector<cache> vault_cache;
         //statistics
         cache m_cache;

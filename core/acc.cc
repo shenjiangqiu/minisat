@@ -1,10 +1,16 @@
 #include "core/acc.h"
 #include <numeric>
+#include <memory>
+#include <fmt/core.h>
+#include <fmt/format.h>
 namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
     {
         return os << "w_num " << acc.w_num << ",miss latency: " << acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
+    }
+    ACC::~ACC()
+    {
     }
     ACC::ACC(int watcher_proc_size,
              int watcher_proc_num,
@@ -15,7 +21,8 @@ namespace MACC
              int vault_memory_access_latency,
              int cpu_to_vault_latency,
              bool mode2,
-             int ctr_latency) : w_size(watcher_proc_size),
+             int ctr_latency) : l3_bandwidth_manager(8), dram_bandwith_manager(14), clause_buffer_size(clause_proc_num),
+                                w_size(watcher_proc_size),
                                 w_num(watcher_proc_num),
                                 c_num(clause_proc_num),
                                 m_ready(false),
@@ -25,7 +32,7 @@ namespace MACC
                                 m_using_watcher_unit(0),
                                 m_using_clause_unit(0),
                                 m_event_queue(),
-                                vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
+                                vault_waiting_queue(clause_proc_num),
                                 vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
                                 m_cache(1 << 4, 1 << 15, cache::lru, 256, 256),                            //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
@@ -119,16 +126,35 @@ namespace MACC
         assert(vault_waiting_queue[vault_index].size() > 0);
         vault_waiting_queue[vault_index].pop();
     }
-
+    std::ostream &operator<<(std::ostream &os, BandWidthManager &bm)
+    {
+        os << "current usage:" << bm.current_bandwidth << std::endl;
+        os << "total usage:" << bm.total_bandwidth << std::endl;
+        return os;
+    }
     void ACC::handle_vault_process_mode2(int vault_index, int end_time)
     {
+        if (vault_waiting_queue[vault_index].empty())
+        {
+            return;
+        }
+        if (clause_buffer_size[vault_index] >= 32)
+        {
+
+            //std::cout << fmt::format("in valtu_index:{}, can't read clause because buffer full", vault_index) << std::endl;
+            //std::cout << "the buffer[" << vault_index << "] size is full:" << clause_buffer_size[vault_index] << std::endl;
+            return;
+        }
+        //std::cout << "the buffer[" << vault_index << "] size not full:" << clause_buffer_size[vault_index] << std::endl;
+
+        
         spdlog::debug("handle_vault_process mode2,vault:{},end_time:{}", vault_index, end_time);
 
         spdlog::debug("in handle vaut: vault: {}", vault_index);
-        assert(vault_waiting_queue[vault_index].size() == 1);
+        //assert(vault_waiting_queue[vault_index].size() == 1);
         spdlog::debug("vault:{},size:{}", vault_index, vault_waiting_queue[vault_index].size());
         auto value_of_vault_waitng_queue = vault_waiting_queue[vault_index].front();
-        vault_waiting_queue[vault_index].pop();
+
         auto watcher_index = value_of_vault_waitng_queue.index;
 
         auto value_of_event = value_of_vault_waitng_queue.value;
@@ -140,32 +166,23 @@ namespace MACC
         auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
-        auto result = m_cache.access(clause_addr);
-        //
-        auto latency = 0;
-        //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
-        if (result == cache::hit) // the latency of read clause;
+        if (!dram_bandwith_manager.tryAddUse(1))
         {
-            latency += 10;
-            auto event = Event(event_value, end_time, end_time + 10);
-
-            if (print_level >= 2)
-                std::cout << event << std::endl;
-            m_event_queue.push(event);
-
-            //vault_busy[vault_index] = true;// BUG here, at this point, it's not free. need to finished the process then it's free!
-        }
-        else // the latency of //miss and hit reserved
-        {
-            // send miss request to memory controller
-            // No event for process_clause generated here
-
-            auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
-            auto event = Event(event_value, end_time, end_time + miss_latency);
-            m_event_queue.push(event);
+            //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
+            //std::cout << "can't use more bandwidth" << std::endl;
             return;
-            //still busy
         }
+        clause_buffer_size[vault_index]++;// fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
+        //std::cout << dram_bandwith_manager << std::endl;
+        vault_waiting_queue[vault_index].pop();
+        // send miss request to memory controller
+        // No event for process_clause generated here
+
+        //auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
+        auto event = Event(event_value, end_time, end_time + miss_latency);
+        m_event_queue.push(event);
+        return;
+        //still busy
     }
 
     void ACC::print() const
@@ -285,18 +302,25 @@ namespace MACC
         new_event.get_value_ref().type = EventType::FinishedInMemCtr;
         m_event_queue.push(new_event);
     }
+    const unsigned long long default_time = static_cast<unsigned long long>(-1);
+
+    unsigned long long real_start = default_time;
+    unsigned long long should_start = default_time;
+    unsigned long long total_latency = 0;
 
     int ACC::start_sim()
     {
         assert(m_event_queue.empty());
         assert(!m_memory_ctr_busy);
         assert(mem_ctr_queue.empty());
-        assert(std::all_of(vault_waiting_queue, vault_waiting_queue + c_num, [](auto the_queue) { return the_queue.empty(); }));
+        assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &the_queue) { return the_queue.empty(); }));
         assert(m_using_watcher_unit == 0);
         assert(m_using_clause_unit == 0);
         assert(std::all_of(watcher_busy.begin(), watcher_busy.end(), [](auto busy) { return busy == false; }));
         assert(std::all_of(c_busy.begin(), c_busy.end(), [](auto busy) { return busy == false; }));
         assert(std::all_of(clause_read_waiting_queue.begin(), clause_read_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
+        assert(l3_bandwidth_manager.empty());
+        assert(dram_bandwith_manager.empty());
         static unsigned long long global_times = 0;
         global_times++;
 
@@ -326,19 +350,29 @@ namespace MACC
 
         //second process the event queue,
         int last_cycle = 0;
-        int global_end_time=0;
+        int global_end_time = 0;
         while (!m_event_queue.empty() or !waiting_queue.empty())
         {
             if (m_event_queue.empty())
             {
+                assert(l3_bandwidth_manager.empty());
+                assert(dram_bandwith_manager.empty());
+                assert(std::all_of(clause_read_waiting_queue.begin(), clause_read_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
+                assert(std::all_of(clause_buffer_size.begin(), clause_buffer_size.end(), [](auto size) { return size == 0; }));
+                assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
+                total_latency += global_end_time - should_start;
+                should_start = default_time;
+                //std::cout << "latency:" << global_end_time - should_start << std::endl;
                 spdlog::debug("sycn!global_sync_time:{}", global_end_time);
                 //std::cout << "sync!________________" << std::endl;
                 assert(!waiting_queue.empty() and m_using_watcher_unit == 0);
                 i = 0;
                 current_running_level++;
-
-                while (m_using_watcher_unit < w_num and !waiting_queue.empty())
+                assert(waiting_queue.front().second->get_level() == current_running_level);
+                while (m_using_watcher_unit < w_num and !waiting_queue.empty()) //bug here, should block the next level
                 {
+                    assert(waiting_queue.front().second->get_level() == current_running_level);
+
                     int watcher_index = -1;
                     auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
                     assert(found != watcher_busy.end());
@@ -494,6 +528,14 @@ namespace MACC
                 {
                     handle_new_watch_list(waiting_queue, end_time, watcher_index);
                 }
+                else if (!waiting_queue.empty() and waiting_queue.front().second->get_level() == current_running_level + 1)
+                {
+                    if (should_start == default_time)
+                    { //change at the first time we try to run the next level
+                        //std::cout << "set should start time" << std::endl;
+                        should_start = end_time;
+                    }
+                }
 
                 break;
             }
@@ -535,11 +577,23 @@ namespace MACC
                 break;
             case EventType::FinishedReadClause:
             {
+                dram_bandwith_manager.delUse(1);
+                //std::cout << dram_bandwith_manager << std::endl;
                 auto vault_index = event_value.vault_index;
+                static int temp = 0;
+                for (int i = 0; i < c_num; i++)
+                {
+                    handle_vault_process_mode2((temp + i) % c_num, end_time);
+                }
+                temp += 1;
+                temp %= c_num;
                 clause_read_waiting_queue[vault_index].push(std::make_pair(event_value.index, value_of_event));
 
                 if (!vault_busy[vault_index])
                 {
+                    clause_buffer_size[vault_index]--;
+                    handle_vault_process_mode2(vault_index, end_time);
+
                     auto next_task = clause_read_waiting_queue[vault_index].front();
                     clause_read_waiting_queue[vault_index].pop();
 
@@ -576,7 +630,13 @@ namespace MACC
 
                     waiting_queue.push(std::make_pair(0, generated));
                     assert(generated->get_level() == current_running_level + 1);
-                    std::cout << generated->get_level() << std::endl;
+                    //std::cout << generated->get_level() << std::endl;
+
+                    if (should_start == default_time and m_using_watcher_unit < w_num and generated->get_level() == current_running_level + 1)
+                    {
+                        //std::cout << "set shoudls tart" << std::endl;
+                        should_start = end_time;
+                    }
                     //change here, we shouldn't execut it immediatly, we should just waiting the sync point;
                     /*
                     int i = 0;
@@ -612,9 +672,11 @@ namespace MACC
                     */
                 }
 
-                assert(vault_waiting_queue[vault_index].empty()); // bug here, need to have seperate queues for the value
+                //assert(vault_waiting_queue[vault_index].empty()); // bug here, need to have seperate queues for the value
                 if (!clause_read_waiting_queue[vault_index].empty())
                 {
+                    clause_buffer_size[vault_index]--;
+                    handle_vault_process_mode2(vault_index, end_time);
                     auto next_task = clause_read_waiting_queue[vault_index].front();
 
                     clause_read_waiting_queue[vault_index].pop();
