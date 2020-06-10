@@ -138,16 +138,15 @@ namespace MACC
         {
             return;
         }
-        if (clause_buffer_size[vault_index] >= 32)
-        {
+        // if (clause_buffer_size[vault_index] >= 32)
+        // {
 
-            //std::cout << fmt::format("in valtu_index:{}, can't read clause because buffer full", vault_index) << std::endl;
-            //std::cout << "the buffer[" << vault_index << "] size is full:" << clause_buffer_size[vault_index] << std::endl;
-            return;
-        }
+        //     //std::cout << fmt::format("in valtu_index:{}, can't read clause because buffer full", vault_index) << std::endl;
+        //     //std::cout << "the buffer[" << vault_index << "] size is full:" << clause_buffer_size[vault_index] << std::endl;
+        //     return;
+        // }
         //std::cout << "the buffer[" << vault_index << "] size not full:" << clause_buffer_size[vault_index] << std::endl;
 
-        
         spdlog::debug("handle_vault_process mode2,vault:{},end_time:{}", vault_index, end_time);
 
         spdlog::debug("in handle vaut: vault: {}", vault_index);
@@ -166,13 +165,14 @@ namespace MACC
         auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
-        if (!dram_bandwith_manager.tryAddUse(1))
+        /*if (!dram_bandwith_manager.tryAddUse(1))
         {
             //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
             //std::cout << "can't use more bandwidth" << std::endl;
             return;
         }
-        clause_buffer_size[vault_index]++;// fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
+        */
+        //clause_buffer_size[vault_index]++; // fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
         //std::cout << dram_bandwith_manager << std::endl;
         vault_waiting_queue[vault_index].pop();
         // send miss request to memory controller
@@ -577,7 +577,7 @@ namespace MACC
                 break;
             case EventType::FinishedReadClause:
             {
-                dram_bandwith_manager.delUse(1);
+                //dram_bandwith_manager.delUse(1);
                 //std::cout << dram_bandwith_manager << std::endl;
                 auto vault_index = event_value.vault_index;
                 static int temp = 0;
@@ -591,7 +591,7 @@ namespace MACC
 
                 if (!vault_busy[vault_index])
                 {
-                    clause_buffer_size[vault_index]--;
+                    //clause_buffer_size[vault_index]--;
                     handle_vault_process_mode2(vault_index, end_time);
 
                     auto next_task = clause_read_waiting_queue[vault_index].front();
@@ -675,7 +675,7 @@ namespace MACC
                 //assert(vault_waiting_queue[vault_index].empty()); // bug here, need to have seperate queues for the value
                 if (!clause_read_waiting_queue[vault_index].empty())
                 {
-                    clause_buffer_size[vault_index]--;
+                    //clause_buffer_size[vault_index]--;
                     handle_vault_process_mode2(vault_index, end_time);
                     auto next_task = clause_read_waiting_queue[vault_index].front();
 
