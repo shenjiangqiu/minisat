@@ -711,7 +711,7 @@ CRef Solver::propagate()
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
         warmup_times++;
-        if (warmup_times >= 20)
+        if (warmup_times >= 1000000)
         {
             real_started = true;
         }
