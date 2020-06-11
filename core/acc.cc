@@ -147,7 +147,6 @@ namespace MACC
         }
         //std::cout << "the buffer[" << vault_index << "] size not full:" << clause_buffer_size[vault_index] << std::endl;
 
-        
         spdlog::debug("handle_vault_process mode2,vault:{},end_time:{}", vault_index, end_time);
 
         spdlog::debug("in handle vaut: vault: {}", vault_index);
@@ -172,7 +171,7 @@ namespace MACC
             //std::cout << "can't use more bandwidth" << std::endl;
             return;
         }
-        clause_buffer_size[vault_index]++;// fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
+        clause_buffer_size[vault_index]++; // fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
         //std::cout << dram_bandwith_manager << std::endl;
         vault_waiting_queue[vault_index].pop();
         // send miss request to memory controller
@@ -350,40 +349,40 @@ namespace MACC
 
         //second process the event queue,
         int last_cycle = 0;
-        int global_end_time = 0;
-        while (!m_event_queue.empty() or !waiting_queue.empty())
+        //int global_end_time = 0;
+        while (!m_event_queue.empty())
         {
-            if (m_event_queue.empty())
-            {
-                assert(l3_bandwidth_manager.empty());
-                assert(dram_bandwith_manager.empty());
-                assert(std::all_of(clause_read_waiting_queue.begin(), clause_read_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
-                assert(std::all_of(clause_buffer_size.begin(), clause_buffer_size.end(), [](auto size) { return size == 0; }));
-                assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
-                total_latency += global_end_time - should_start;
-                should_start = default_time;
-                //std::cout << "latency:" << global_end_time - should_start << std::endl;
-                spdlog::debug("sycn!global_sync_time:{}", global_end_time);
-                //std::cout << "sync!________________" << std::endl;
-                assert(!waiting_queue.empty() and m_using_watcher_unit == 0);
-                i = 0;
-                current_running_level++;
-                assert(waiting_queue.front().second->get_level() == current_running_level);
-                while (m_using_watcher_unit < w_num and !waiting_queue.empty()) //bug here, should block the next level
-                {
-                    assert(waiting_queue.front().second->get_level() == current_running_level);
+            // if (m_event_queue.empty())
+            // {
+            //     assert(l3_bandwidth_manager.empty());
+            //     assert(dram_bandwith_manager.empty());
+            //     assert(std::all_of(clause_read_waiting_queue.begin(), clause_read_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
+            //     assert(std::all_of(clause_buffer_size.begin(), clause_buffer_size.end(), [](auto size) { return size == 0; }));
+            //     assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &queue) { return queue.empty(); }));
+            //     total_latency += global_end_time - should_start;
+            //     should_start = default_time;
+            //     //std::cout << "latency:" << global_end_time - should_start << std::endl;
+            //     spdlog::debug("sycn!global_sync_time:{}", global_end_time);
+            //     //std::cout << "sync!________________" << std::endl;
+            //     assert(!waiting_queue.empty() and m_using_watcher_unit == 0);
+            //     i = 0;
+            //     current_running_level++;
+            //     assert(waiting_queue.front().second->get_level() == current_running_level);
+            //     while (m_using_watcher_unit < w_num and !waiting_queue.empty()) //bug here, should block the next level
+            //     {
+            //         assert(waiting_queue.front().second->get_level() == current_running_level);
 
-                    int watcher_index = -1;
-                    auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
-                    assert(found != watcher_busy.end());
-                    watcher_index = std::distance(watcher_busy.begin(), found);
-                    assert(watcher_index >= 0 and watcher_index < w_num);
+            //         int watcher_index = -1;
+            //         auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
+            //         assert(found != watcher_busy.end());
+            //         watcher_index = std::distance(watcher_busy.begin(), found);
+            //         assert(watcher_index >= 0 and watcher_index < w_num);
 
-                    handle_new_watch_list(waiting_queue, global_end_time + i, watcher_index);
-                }
-            }
+            //         handle_new_watch_list(waiting_queue, global_end_time + i, watcher_index);
+            //     }
+            // }
             auto end_time = m_event_queue.get_next_time();
-            global_end_time = end_time;
+            //global_end_time = end_time;
 
             auto event_value = m_event_queue.get_next_event();
             auto value_of_event = event_value.value;
@@ -524,17 +523,9 @@ namespace MACC
                     idel_watcher_times++;
                     idel_watcher_total += w_num - m_using_watcher_unit;
                 }
-                if (!waiting_queue.empty() and waiting_queue.front().second->get_level() == current_running_level) // bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
+                if (!waiting_queue.empty()) // bug here/ TO-DO need to fix, here one watcher list should inside one watcher unit, but here, it will be seperate!!!! MAYBE, make it a feature??????????????????????????????????!!
                 {
                     handle_new_watch_list(waiting_queue, end_time, watcher_index);
-                }
-                else if (!waiting_queue.empty() and waiting_queue.front().second->get_level() == current_running_level + 1)
-                {
-                    if (should_start == default_time)
-                    { //change at the first time we try to run the next level
-                        //std::cout << "set should start time" << std::endl;
-                        should_start = end_time;
-                    }
                 }
 
                 break;
@@ -625,30 +616,26 @@ namespace MACC
                 //check if generate new assignment
                 //auto iter = value_of_event->get_generated_assignments().find(event_value.index);
                 auto generated = value_of_event->get_generated(event_value.index);
-                if (generated)
+                if (generated != nullptr)
                 {
 
                     waiting_queue.push(std::make_pair(0, generated));
-                    assert(generated->get_level() == current_running_level + 1);
+                    //assert(generated->get_level() == current_running_level + 1);
                     //std::cout << generated->get_level() << std::endl;
 
-                    if (should_start == default_time and m_using_watcher_unit < w_num and generated->get_level() == current_running_level + 1)
-                    {
-                        //std::cout << "set shoudls tart" << std::endl;
-                        should_start = end_time;
-                    }
+                    // if (should_start == default_time and m_using_watcher_unit < w_num and generated->get_level() == current_running_level + 1)
+                    // {
+                    //     //std::cout << "set shoudls tart" << std::endl;
+                    //     should_start = end_time;
+                    // }
                     //change here, we shouldn't execut it immediatly, we should just waiting the sync point;
-                    /*
+
                     int i = 0;
-                    while (!waiting_queue.empty() && m_using_watcher_unit < w_num ) 
+                    while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
                     {
-                        auto next=waiting_queue.front();
-                        auto level=next.second->get_level();
-                        if(level==current_running_level){
-                            
-                        }else{
-                            throw std::runtime_error("should be the next level");
-                        }
+                        //auto next = waiting_queue.front();
+                        //auto level = next.second->get_level();
+
                         int watcher_index = -1;
                         auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
                         assert(found != watcher_busy.end());
@@ -658,7 +645,7 @@ namespace MACC
                         handle_new_watch_list(waiting_queue, end_time + i, watcher_index);
                         i++;
                     }
-                    
+                    /*
                     if (m_using_watcher_unit >= w_num && !waiting_queue.empty())
                     {
                         int total_size = 0;
