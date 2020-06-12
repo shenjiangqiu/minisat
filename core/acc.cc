@@ -4,7 +4,7 @@ namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
     {
-        return os << "w_num " << acc.w_num<<",miss latency: "<<acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
+        return os << "w_num " << acc.w_num << ",miss latency: " << acc.miss_latency << ",w_size " << acc.w_size << ", w_latency " << acc.watcher_process_latency << ",clause_num " << acc.c_num << ", vault_mem_latency " << acc.vault_memory_access_latency << ", cpu_to_vault_latency " << acc.cpu_to_vault_latency << ", is_mode2 " << acc.mode2 << ",ctl_latency: " << acc.ctr_latency;
     }
     ACC::ACC(int watcher_proc_size,
              int watcher_proc_num,
@@ -27,7 +27,7 @@ namespace MACC
                                 m_event_queue(),
                                 vault_waiting_queue(new std::queue<vault_waiting_queue_value>[clause_proc_num]),
                                 vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
-                                m_cache(1<<4, 1 << 15, cache::lru, 256, 256),   //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
+                                m_cache(1 << 4, 1 << 15, cache::lru, 256, 256),                            //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
                                 vault_memory_access_latency(vault_memory_access_latency),
                                 cpu_to_vault_latency(cpu_to_vault_latency),
@@ -134,38 +134,41 @@ namespace MACC
         auto value_of_event = value_of_vault_waitng_queue.value;
 
         auto clause_addr = value_of_event->get_clause_addr(watcher_index); // the address of the clause
+
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
-        auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
+        //auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
+
+        // send miss request to memory controller
+        // No event for process_clause generated here
         auto result = m_cache.access(clause_addr);
-        //
-        auto latency = 0;
-        //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
-        if (result == cache::hit) // the latency of read clause;
+        int latency = 0;
+        if (result == cache::miss)
         {
-            latency += 10;
-            auto event = Event(event_value, end_time, end_time + 10);
+            latency = miss_latency;
 
-            if (print_level >= 2)
-                std::cout << event << std::endl;
-            m_event_queue.push(event);
-
-            //vault_busy[vault_index] = true;// BUG here, at this point, it's not free. need to finished the process then it's free!
+            auto miss_event_value = EventValue(EventType::missAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
+            auto miss_event = Event(miss_event_value, end_time, miss_latency + end_time);
+            //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
+            spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
+            m_event_queue.push(miss_event);
         }
-        else // the latency of //miss and hit reserved
+        else if (result == cache::hit)
         {
-            // send miss request to memory controller
-            // No event for process_clause generated here
-
-            auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
-            auto event = Event(event_value, end_time, end_time + miss_latency);
-            m_event_queue.push(event);
-            return;
-            //still busy
+            latency = 16;
         }
+        else
+        {
+            latency = miss_latency;
+        }
+
+        auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
+        auto event = Event(event_value, end_time, end_time + latency);
+        m_event_queue.push(event);
+        return;
     }
 
     void ACC::print() const
@@ -237,14 +240,14 @@ namespace MACC
         m_access++;
         if (result == cache::miss) //when miss, push event to fill that cache line
         {
-            auto evalue = EventValue(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
+            auto evalue = EventValue(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, -1,addr, -1, watcher_index);
             auto event = Event(evalue, end_time, miss_latency + end_time);
             spdlog::debug(std::string("CacheMiss addr:") + std::to_string(addr) + std::string(", at cycle:") + std::to_string(end_time));
             m_event_queue.push(event);
         }
         if (total - start > w_size)
         {
-            auto evalue = EventValue(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
+            auto evalue = EventValue(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, addr, -1, watcher_index);
             auto event = Event(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
 
             waiting_queue.front().first += w_size;
@@ -384,8 +387,10 @@ namespace MACC
             }
             case EventType::missAccess:
             {
+                auto addr = event_value.addr;
+                
                 spdlog::debug(std::string("fill:addr: ") + std::to_string(value_of_event->get_addr() + 8 * event_value.index) + std::string(",at cycle:") + std::to_string(end_time));
-                m_cache.fill(value_of_event->get_addr() + 8 * event_value.index);
+                m_cache.fill(addr);
                 break;
             }
             case EventType::ReadWatcherList:
