@@ -498,15 +498,15 @@ std::vector<ACC *> &get_acc()
                                        c.mode2,
                                        c.ctr_latency));
         });
-        std::cout<<"finished parse the arges"<<std::endl;
-        if(m_acc.empty()){
+        std::cout << "finished parse the arges" << std::endl;
+        if (m_acc.empty())
+        {
             throw std::runtime_error("the config is empty");
         }
         std::for_each(m_acc.begin(), m_acc.end(), [](auto &pacc) {
             std::cout << *pacc << std::endl;
         });
-        std::cout<<"----------------------------"<<std::endl;
-
+        std::cout << "----------------------------" << std::endl;
     }
     return m_acc;
 }
@@ -541,7 +541,8 @@ CRef Solver::propagate()
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
-        if(ws.size()==0){
+        if (ws.size() == 0)
+        {
             continue;
         }
         Watcher *i, *j, *end;
@@ -600,7 +601,8 @@ CRef Solver::propagate()
             Watcher w = Watcher(cr, first);
             if (real_started)
             {
-                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
+                //this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
+                //this_wrap->add_clause_literal(ii - 1, first);
             }
             if (first != blocker && value(first) == l_True)
             {
@@ -613,12 +615,17 @@ CRef Solver::propagate()
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
+                this_wrap->add_clause_literal(ii - 1, c[0]);
+                this_wrap->add_clause_literal(ii - 1, c[1]);
             }
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
                 if (real_started)
+                {
                     this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
+                    this_wrap->add_clause_literal(ii - 1, c[k]);
+                }
 
                 if (value(c[k]) != l_False)
                 {
@@ -649,9 +656,9 @@ CRef Solver::propagate()
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
                 if (real_started)
                 {
-                    auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
+                    auto new_wrap = awf.create(first, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
 
-                    lit_to_wrap.insert({first.x, new_wrap});
+                    lit_to_wrap.insert({first, new_wrap});
                 }
                 uncheckedEnqueue(first, cr);
             }

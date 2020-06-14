@@ -46,8 +46,9 @@ namespace MACC
                                 clause_read_waiting_queue(c_num),
                                 clause_foot_print_set(2 << 18),
                                 watcher_list_foot_print_set(2 << 18),
-                                current_level_read_set(2 << 10),
-                                current_level_write_set(2 << 10)
+                                current_level_write_map(2 << 10),
+                                current_level_read_map(2 << 10)
+
     {
         //nothing to do
     }
@@ -163,11 +164,29 @@ namespace MACC
         auto value_of_event = value_of_vault_waitng_queue.value;
 
         auto clause_addr = value_of_event->get_clause_addr(watcher_index); // the address of the clause
+
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
 
         auto result = m_cache.access(clause_addr);
+        auto blockAddr = cache::get_block_addr(clause_addr);
+        if (clause_foot_print_set.insert(blockAddr).second)
+        {
+            total_clause_foot_print++;
+        }
+        auto &&literal_vector = value_of_event->get_clause_literal(watcher_index);
+        for (auto &&lit : literal_vector)
+        {
+            current_level_read_map[lit]++;
+            total_reads++;
+        }
+        auto generated = value_of_event->get_generated(watcher_index);
+        if (generated)
+        {
+            current_level_write_map[generated->get_value()]++;
+            total_writes++;
+        }
 
         int latency = 0;
         bool miss_flag = false;
@@ -231,6 +250,14 @@ namespace MACC
         std::cout << "m_hit " << get_m_hit() << std::endl;
         std::cout << "m_miss " << get_m_miss() << std::endl;
         std::cout << "m_hit_res " << get_m_hit_res() << std::endl;
+        std::cout << "clause_foot_print" << total_clause_foot_print << std::endl;
+        std::cout << "watcher_list_foot_print " << total_watcher_list_foot_print << std::endl;
+        std::cout << m_cache << std::endl;
+        std::cout << "total_read_old_times " << total_read_old_times << std::endl;
+        std::cout << "total_write_same_times " << total_write_same_times << std::endl;
+        std::cout << "total_write_conflict_times " << total_write_conflict_times << std::endl;
+        std::cout << "total_writes " << total_writes << std::endl;
+        std::cout << "total_reads " << total_reads << std::endl;
     }
 
     ACC *create_acc(int watcher_proc_size,
@@ -264,6 +291,11 @@ namespace MACC
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
         auto result = m_cache.access(addr);
+        auto blockAddr = cache::get_block_addr(addr);
+        if (watcher_list_foot_print_set.insert(blockAddr).second)
+        { //inserted, add to foot print
+            total_watcher_list_foot_print++;
+        }
         auto &&waiting_value = waiting_queue.front().second;
 
         auto is_hit = result == cache::hit;
@@ -338,7 +370,19 @@ namespace MACC
     unsigned long long real_start = default_time;
     unsigned long long should_start = default_time;
     unsigned long long total_latency = 0;
+    void ACC::sync_stats()
+    {
+        total_read_old_times += current_level_read_old_times;
+        total_write_same_times += current_level_write_same_times;
+        total_write_conflict_times += current_level_write_conflict_times;
 
+        current_level_read_old_times = 0;
+        current_level_write_same_times = 0;
+        current_level_write_conflict_times = 0;
+
+        current_level_write_map.clear();
+        current_level_read_map.clear();
+    }
     int ACC::start_sim()
     {
         assert(m_event_queue.empty());
@@ -384,6 +428,7 @@ namespace MACC
         int global_end_time = 0;
         while (!m_event_queue.empty() or !waiting_queue.empty())
         {
+            //sync!
             if (m_event_queue.empty())
             {
                 assert(l3_bandwidth_manager.empty());
@@ -412,6 +457,9 @@ namespace MACC
 
                     handle_new_watch_list(waiting_queue, global_end_time + i, watcher_index);
                 }
+
+                //next to culculate the read old times
+                sync_stats();
             }
             auto end_time = m_event_queue.get_next_time();
             global_end_time = end_time;
@@ -728,8 +776,10 @@ namespace MACC
             }
             } // switch
         }
+        sync_stats();
         return last_cycle;
     }
+
     std::ostream &operator<<(std::ostream &os, EventType type)
     {
         switch (type)
@@ -787,4 +837,76 @@ namespace MACC
         os << event.get_value() << std::endl;
         return os;
     }
+
+    void ACC::add_clause_read_set(assign_wrap *value, int index)
+    {
+        for (auto &&literal : value->get_clause_literal(index))
+            current_level_read_map[literal] += 1;
+    }
+    void ACC::add_clause_write_set(assign_wrap *value, int index)
+    {
+        for (auto &&literal : value->get_clause_literal(index))
+        {
+            current_level_write_map[literal] += 1;
+        }
+    }
+
+    int ACC::get_total_write_times(int literal)
+    {
+        int total = 0;
+        for (auto &&lit : {literal, -literal})
+        {
+            if (current_level_write_map.find(lit) != current_level_write_map.end())
+            {
+                total += current_level_write_map[lit];
+            }
+        }
+        return total;
+    }
+    int ACC::get_total_read_times(int literal)
+    {
+        int total = 0;
+        for (auto &&lit : {literal, -literal})
+        {
+            if (current_level_read_map.find(lit) != current_level_read_map.end())
+            {
+                total += current_level_read_map[lit];
+            }
+        }
+        return total;
+    }
+
+    void ACC::update_read_write_conflict()
+    {
+        for (auto &&write_literal : current_level_write_map)
+        {
+            // first we count the read old value times:
+
+            //if it's negative, and the opposive exist
+            if (write_literal.first < 0 &&
+                current_level_write_map.find(-write_literal.first) != current_level_write_map.end())
+            {
+                // ignore this case, because we will count the opposive one.
+            }
+            else
+            {
+                //first , get all reads from that write to the same variable
+                assert(get_total_read_times(write_literal.first) != 0);
+                auto temp = get_total_read_times(write_literal.first) - get_total_write_times(write_literal.first);
+                assert(temp >= 0);
+                current_level_read_old_times += temp;
+
+                //next we need the count the write conflict
+
+                current_level_write_same_times += write_literal.second - 1;
+                auto iter = current_level_write_map.find(-write_literal.first);
+                if (iter != current_level_write_map.end())
+                {
+                    current_level_write_conflict_times += iter->second;
+                }
+            }
+        }
+    }
+    void ACC::clear_read_write_set() {}
+
 } // namespace MACC

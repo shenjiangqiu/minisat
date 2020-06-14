@@ -42,22 +42,26 @@ public:
                 int depend_id,
                 assign_wrap *depend_value,
                 unsigned level = 0) : value(value),
-                                 watcher_size(watcher_size),
-                                 depend_id(depend_id),
-                                 depend_value(depend_value),
-                                 generated_conf(-1),
-                                 clause_size(0),
-                                 level(level)
+                                      watcher_size(watcher_size),
+                                      depend_id(depend_id),
+                                      depend_value(depend_value),
+                                      generated_conf(-1),
+                                      clause_size(0),
+                                      level(level)
     {
     }
     assign_wrap(assign_wrap &other) = default;
     assign_wrap(assign_wrap &&other) = default;
     assign_wrap(const assign_wrap &other) = default;
     int get_value() const { return value; }
-    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                    //watcher list addr
-    unsigned long long get_addr() const { return addr; }                                           //watcher list addr
+    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                          //watcher list addr
+    unsigned long long get_addr() const { return addr; }                                                 //watcher list addr
     unsigned long long get_clause_addr(int index) const { return modified_clause_list_items.at(index); } //clause addr
+    void add_clause_literal(int index, int literal) { clause_literals[index].push_back(literal); } // for read
+    auto &get_clause_literal(int index) { return clause_literals[index]; }
 
+
+    
 private:
     unsigned long long clause_addr;
     int value;
@@ -69,7 +73,7 @@ private:
     std::map<int, std::vector<unsigned long long>> clause_detail;
     std::map<int, int> pushed_other_list_items;
     int generated_conf;
-
+    std::map<int, std::vector<int>> clause_literals;
     std::map<int, assign_wrap *> generated_assignments; // must make the ptr weak here to break circular;
 
     int clause_size;

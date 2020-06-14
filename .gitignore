@@ -6,3 +6,4 @@ minisat_debug
 minisat_release
 *.conf
 result_*
+depend.mk

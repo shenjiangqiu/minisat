@@ -181,8 +181,9 @@ namespace MACC
         BandWidthManager(unsigned total_bandwidth) : current_bandwidth(0), total_bandwidth(total_bandwidth)
         {
         }
-        bool empty(){
-            return current_bandwidth==0;
+        bool empty()
+        {
+            return current_bandwidth == 0;
         }
         void print()
         {
@@ -206,7 +207,7 @@ namespace MACC
     private:
         unsigned current_bandwidth;
         const unsigned total_bandwidth;
-        friend std::ostream & operator<<(std::ostream &os, BandWidthManager &);
+        friend std::ostream &operator<<(std::ostream &os, BandWidthManager &);
     };
     std::ostream &operator<<(std::ostream &os, BandWidthManager &bm);
 
@@ -297,6 +298,12 @@ namespace MACC
         int assign_to_vault(unsigned long long addr) { return (addr >> 7) & (c_num - 1); }
 
     private:
+        void add_clause_read_set(assign_wrap *value, int index);
+        void add_clause_write_set(assign_wrap *value, int index);
+        int get_total_write_times(int literal);
+        int get_total_read_times(int literal);
+        void update_read_write_conflict();
+        void clear_read_write_set();
         BandWidthManager l3_bandwidth_manager;
         BandWidthManager dram_bandwith_manager;
         std::vector<int> clause_buffer_size;
@@ -361,10 +368,21 @@ namespace MACC
         unsigned long long total_clause_foot_print = 0;
         std::unordered_set<unsigned long long> watcher_list_foot_print_set;
         unsigned long long total_watcher_list_foot_print = 0;
-        
-        std::unordered_set<unsigned long long> current_level_write_set;
-        std::unordered_set<unsigned long long> current_level_read_set;
+        //read map :literal to times
+        std::unordered_map<int, int> current_level_write_map;
+        //write map :literal to times
+        std::unordered_map<int, int> current_level_read_map;
         //hardware queues
+        int current_level_read_old_times = 0;
+        int current_level_write_same_times = 0;
+        int current_level_write_conflict_times = 0;
+        void sync_stats();
+        unsigned long long total_read_old_times = 0;
+        unsigned long long total_write_same_times = 0;
+        unsigned long long total_write_conflict_times = 0;
+
+        unsigned long long total_reads;
+        unsigned long long total_writes;
     };
 
     ACC *create_acc(int watcher_proc_size,
