@@ -43,7 +43,11 @@ namespace MACC
                                 watcher_busy(w_num, false),
                                 c_busy(c_num, false),
                                 next_c(w_num, 0),
-                                clause_read_waiting_queue(c_num)
+                                clause_read_waiting_queue(c_num),
+                                clause_foot_print_set(2 << 18),
+                                watcher_list_foot_print_set(2 << 18),
+                                current_level_read_set(2 << 10),
+                                current_level_write_set(2 << 10)
     {
         //nothing to do
     }
@@ -164,6 +168,7 @@ namespace MACC
         //auto size_of_detail = clause_detail.size();
 
         auto result = m_cache.access(clause_addr);
+
         int latency = 0;
         bool miss_flag = false;
         if (result == cache::miss)

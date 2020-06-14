@@ -12,6 +12,7 @@
 #include <list>
 #include "core/assign_wrap.h"
 #include <set>
+#include <unordered_set>
 namespace MACC
 {
     //to do list:
@@ -355,6 +356,14 @@ namespace MACC
         std::vector<std::queue<std::pair<int, assign_wrap *>>> clause_read_waiting_queue;
         unsigned long long vault_tasks = 0;
         unsigned int current_running_level = 0;
+
+        std::unordered_set<unsigned long long> clause_foot_print_set;
+        unsigned long long total_clause_foot_print = 0;
+        std::unordered_set<unsigned long long> watcher_list_foot_print_set;
+        unsigned long long total_watcher_list_foot_print = 0;
+        
+        std::unordered_set<unsigned long long> current_level_write_set;
+        std::unordered_set<unsigned long long> current_level_read_set;
         //hardware queues
     };
 
