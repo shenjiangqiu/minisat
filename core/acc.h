@@ -97,6 +97,7 @@ namespace MACC
         unsigned long long addr;
         int vault_index;
         int watcher_index;
+        bool is_miss;
     };
 
     std::ostream &operator<<(std::ostream &os, EventType type);
