@@ -376,6 +376,7 @@ namespace MACC
             }
             case EventType::VaultMissAccess:
             {
+                throw std::runtime_error("can't be here right now");
 
                 auto vault_index = event_value.vault_index;
                 auto vault_addr = event_value.addr;
