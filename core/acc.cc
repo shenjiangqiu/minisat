@@ -138,7 +138,7 @@ namespace MACC
         {
             return;
         }
-        if (clause_buffer_size[vault_index] >= 32)
+        if (clause_buffer_size[vault_index] >= 64)
         {
 
             //std::cout << fmt::format("in valtu_index:{}, can't read clause because buffer full", vault_index) << std::endl;
@@ -147,7 +147,6 @@ namespace MACC
         }
         //std::cout << "the buffer[" << vault_index << "] size not full:" << clause_buffer_size[vault_index] << std::endl;
 
-        
         spdlog::debug("handle_vault_process mode2,vault:{},end_time:{}", vault_index, end_time);
 
         spdlog::debug("in handle vaut: vault: {}", vault_index);
@@ -163,23 +162,50 @@ namespace MACC
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
+
+        auto result = m_cache.access(clause_addr);
+        int latency = 0;
+        bool miss_flag = false;
+        if (result == cache::miss)
+        {
+            miss_flag = true;
+            latency = miss_latency;
+
+            auto miss_event_value = EventValue(EventType::missAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
+            auto miss_event = Event(miss_event_value, end_time, miss_latency + end_time);
+            //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
+            spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
+            m_event_queue.push(miss_event);
+        }
+        else if (result == cache::hit)
+        {
+            latency = 16;
+        }
+        else
+        {
+            latency = miss_latency;
+        }
         auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
+        event_value.is_miss = miss_flag;
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
-        if (!dram_bandwith_manager.tryAddUse(1))
+        if (result == cache::miss)
         {
-            //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
-            //std::cout << "can't use more bandwidth" << std::endl;
-            return;
+            if (!dram_bandwith_manager.tryAddUse(1))
+            {
+                //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
+                //std::cout << "can't use more bandwidth" << std::endl;
+                return;
+            }
         }
-        clause_buffer_size[vault_index]++;// fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
+        clause_buffer_size[vault_index]++; // fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
         //std::cout << dram_bandwith_manager << std::endl;
         vault_waiting_queue[vault_index].pop();
         // send miss request to memory controller
         // No event for process_clause generated here
 
         //auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
-        auto event = Event(event_value, end_time, end_time + miss_latency);
+        auto event = Event(event_value, end_time, end_time + latency);
         m_event_queue.push(event);
         return;
         //still busy
@@ -254,14 +280,14 @@ namespace MACC
         m_access++;
         if (result == cache::miss) //when miss, push event to fill that cache line
         {
-            auto evalue = EventValue(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
+            auto evalue = EventValue(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, addr, -1, watcher_index);
             auto event = Event(evalue, end_time, miss_latency + end_time);
             spdlog::debug(std::string("CacheMiss addr:") + std::to_string(addr) + std::string(", at cycle:") + std::to_string(end_time));
             m_event_queue.push(event);
         }
         if (total - start > w_size)
         {
-            auto evalue = EventValue(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
+            auto evalue = EventValue(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, addr, -1, watcher_index);
             auto event = Event(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
 
             waiting_queue.front().first += w_size;
@@ -434,6 +460,7 @@ namespace MACC
             }
             case EventType::VaultMissAccess:
             {
+                throw std::runtime_error("can't be here right now");
 
                 auto vault_index = event_value.vault_index;
                 auto vault_addr = event_value.addr;
@@ -445,8 +472,10 @@ namespace MACC
             }
             case EventType::missAccess:
             {
+                auto addr = event_value.addr;
+
                 spdlog::debug(std::string("fill:addr: ") + std::to_string(value_of_event->get_addr() + 8 * event_value.index) + std::string(",at cycle:") + std::to_string(end_time));
-                m_cache.fill(value_of_event->get_addr() + 8 * event_value.index);
+                m_cache.fill(addr);
                 break;
             }
             case EventType::ReadWatcherList:
@@ -577,7 +606,8 @@ namespace MACC
                 break;
             case EventType::FinishedReadClause:
             {
-                dram_bandwith_manager.delUse(1);
+                if (event_value.is_miss)
+                    dram_bandwith_manager.delUse(1);
                 //std::cout << dram_bandwith_manager << std::endl;
                 auto vault_index = event_value.vault_index;
                 static int temp = 0;
