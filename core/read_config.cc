@@ -32,6 +32,8 @@ std::vector<sjq::config> parse_file(const std::string &filename)
     while (std::getline(file_stream, line))
     {
         if(line[0] == '#') continue;
+        if(line[0] == ' ') continue;
+        if(line.size()<5) continue;
         std::istringstream i_line(line);
         i_line >> m_config;
         result.push_back(m_config);
