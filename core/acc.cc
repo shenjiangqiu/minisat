@@ -44,8 +44,6 @@ namespace MACC
                                 c_busy(c_num, false),
                                 next_c(w_num, 0),
                                 clause_read_waiting_queue(c_num),
-                                clause_foot_print_set(2 << 18),
-                                watcher_list_foot_print_set(2 << 18),
                                 current_level_write_map(2 << 10),
                                 current_level_read_map(2 << 10)
 
@@ -170,11 +168,9 @@ namespace MACC
         //auto size_of_detail = clause_detail.size();
 
         auto result = m_cache.access(clause_addr);
-        auto blockAddr = cache::get_block_addr(clause_addr);
-        if (clause_foot_print_set.insert(blockAddr).second)
-        {
-            total_clause_foot_print++;
-        }
+        //auto blockAddr = cache::get_block_addr(clause_addr);
+        update_clause_range(clause_addr);
+
         auto &&literal_vector = value_of_event->get_clause_literal(watcher_index);
         for (auto &&lit : literal_vector)
         {
@@ -250,8 +246,8 @@ namespace MACC
         std::cout << "m_hit " << get_m_hit() << std::endl;
         std::cout << "m_miss " << get_m_miss() << std::endl;
         std::cout << "m_hit_res " << get_m_hit_res() << std::endl;
-        std::cout << "clause_foot_print" << total_clause_foot_print << std::endl;
-        std::cout << "watcher_list_foot_print " << total_watcher_list_foot_print << std::endl;
+        std::cout << "clause_foot_print" << get_range_size_clause() << std::endl;
+        std::cout << "watcher_list_foot_print " << get_range_size_watcher() << std::endl;
         std::cout << m_cache << std::endl;
         std::cout << "total_read_old_times " << total_read_old_times << std::endl;
         std::cout << "total_write_same_times " << total_write_same_times << std::endl;
@@ -291,11 +287,9 @@ namespace MACC
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
         auto result = m_cache.access(addr);
-        auto blockAddr = cache::get_block_addr(addr);
-        if (watcher_list_foot_print_set.insert(blockAddr).second)
-        { //inserted, add to foot print
-            total_watcher_list_foot_print++;
-        }
+        //auto blockAddr = cache::get_block_addr(addr);
+        update_watcher_range(addr);
+
         auto &&waiting_value = waiting_queue.front().second;
 
         auto is_hit = result == cache::hit;

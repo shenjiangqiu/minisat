@@ -364,10 +364,51 @@ namespace MACC
         unsigned long long vault_tasks = 0;
         unsigned int current_running_level = 0;
 
-        std::unordered_set<unsigned long long> clause_foot_print_set;
-        unsigned long long total_clause_foot_print = 0;
-        std::unordered_set<unsigned long long> watcher_list_foot_print_set;
-        unsigned long long total_watcher_list_foot_print = 0;
+        //std::unordered_set<unsigned long long> clause_foot_print_set;
+        //unsigned long long total_clause_foot_print = 0;
+        //std::unordered_set<unsigned long long> watcher_list_foot_print_set;
+        //unsigned long long total_watcher_list_foot_print = 0;
+
+        unsigned long long watcher_min = static_cast<unsigned long long>(-1);
+        ;
+        unsigned long long watcher_max = 0;
+        void update_watcher_range(unsigned long long addr)
+        {
+
+            if (addr < watcher_min)
+            {
+                watcher_min = addr;
+            }
+            if (addr > watcher_max)
+            {
+                watcher_max = addr;
+            }
+        }
+        unsigned long long get_range_size_watcher() const
+        {
+            return watcher_max - watcher_min;
+        }
+
+        unsigned long long clause_min = static_cast<unsigned long long>(-1);
+        ;
+        unsigned long long clause_max = 0;
+        void update_clause_range(unsigned long long addr)
+        {
+
+            if (addr < clause_min)
+            {
+                clause_min = addr;
+            }
+            if (addr > clause_max)
+            {
+                clause_max = addr;
+            }
+        }
+        unsigned long long get_range_size_clause() const
+        {
+            return clause_max - clause_min;
+        }
+
         //read map :literal to times
         std::unordered_map<int, int> current_level_write_map;
         //write map :literal to times
