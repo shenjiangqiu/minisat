@@ -4,6 +4,6 @@ core/TEST_WRAP
 *.or
 minisat_debug
 minisat_release
-*.conf
+
 result_*
 depend.mk
