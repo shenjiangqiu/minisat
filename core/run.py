@@ -16,5 +16,6 @@ def run_task(command):
 commands = ["./minisat_release ~/cnfs/"+c +
             " 2>&1 |tail -n 100000 > result_"+c+".txt" for c in cnfs]
 print(commands)
+print(num_cores)
 with Pool(num_cores) as p:
     p.map(run_task, commands)
