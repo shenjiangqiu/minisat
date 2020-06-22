@@ -6,10 +6,10 @@ class CacheWrap
 {
 public:
     CacheWrap()
+        : l1cache(1 << 3, 1 << (14 - 6 - 3), cache::lru, 512, 512),
+          l2cache(1 << 3, 1 << (19 - 6 - 3), cache::lru, 512, 512),
+          l3cache(1 << 3, 1 << (25 - 6 - 3), cache::lru, 512, 512)
     {
-        l1cache = cache(1 << 3, 1 << (14 - 6 - 3), cache::lru, 512, 512);
-        l2cache = cache(1 << 3, 1 << (19 - 6 - 3), cache::lru, 512, 512);
-        l3cache = cache(1 << 3, 1 << (25 - 6 - 3), cache::lru, 512, 512);
     }
     enum status
     {
@@ -23,7 +23,7 @@ public:
         L2,
         L3,
     };
-    std::pair<status, hit_where> access(unsigned long long addr);
+    std::pair<status, hit_where> access(unsigned long long addr, int type);
 
 private:
     cache l1cache;

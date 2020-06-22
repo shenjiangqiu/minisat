@@ -514,9 +514,9 @@ unsigned long long warmup = 0;
 CacheWrap m_cache_wrap;
 unsigned long long total_hit[3] = {0};
 unsigned long long total_miss = 0;
-void accumulate(TT &to_be_accumulated, CacheWrap &cache, void *addr)
+void accumulate(TT &to_be_accumulated, CacheWrap &cache, void *addr,int type)
 {
-    auto result = cache.access((unsigned long long)addr);
+    auto result = cache.access((unsigned long long)addr,type);
     if (result.first == CacheWrap::hit)
     {
         total_hit[result.second]++;
@@ -586,9 +586,9 @@ CRef Solver::propagate()
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
             //simulate watcher read
-            accumulate(total_cycle_in_bcp, m_cache_wrap, i);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, i,0);
             //simulate value read
-            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(blocker)]);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(blocker)],0);
 
             if (value(blocker) == l_True)
             {
@@ -603,7 +603,7 @@ CRef Solver::propagate()
             // Make sure the false literal is data[1]:
             CRef cr = i->cref;
             Clause &c = ca[cr];
-            accumulate(total_cycle_in_bcp, m_cache_wrap, &ca[cr]);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &ca[cr],1);
 
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -622,20 +622,20 @@ CRef Solver::propagate()
                 total_cycle_in_bcp += 2;
                 continue;
             }
-            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[0])]);
-            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[1])]);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[0])],0);
+            accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[1])],0);
 
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
-                accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[k])]);
+                accumulate(total_cycle_in_bcp, m_cache_wrap, &assigns[var(c[k])],0);
                 total_cycle_in_bcp++;
                 if (value(c[k]) != l_False)
                 {
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    accumulate(total_cycle_in_bcp, m_cache_wrap, &watches[~c[1]]);
+                    accumulate(total_cycle_in_bcp, m_cache_wrap, &watches[~c[1]],0);
 
                     total_cycle_in_bcp += 2;
                     goto NextClause;

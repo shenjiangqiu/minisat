@@ -1,8 +1,8 @@
 #include"core/cache_wrap.h"
 #include<cache.h>
-std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned long long addr)
+std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned long long addr,int type)
     {
-        auto l1_result = l1cache.access(addr);
+        auto l1_result = l1cache.access(addr,type);
         if (l1_result == cache::hit)
         {
             return std::make_pair(hit, L1);
@@ -14,7 +14,7 @@ std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned lon
         else
         {
             l1cache.fill(addr);
-            auto l2_result = l2cache.access(addr);
+            auto l2_result = l2cache.access(addr,type);
             if (l2_result == cache::hit)
             {
                 return std::make_pair(hit, L2);
@@ -26,7 +26,7 @@ std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned lon
             else
             {
                 l2cache.fill(addr);
-                auto l3_result = l3cache.access(addr);
+                auto l3_result = l3cache.access(addr,type);
                 if (l3_result == cache::hit)
                 {
                     return std::make_pair(hit, L3);
