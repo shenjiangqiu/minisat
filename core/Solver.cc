@@ -515,6 +515,8 @@ int warmup_times = 0;
 int start_warmup = 0;
 bool real_started = false;
 assign_wrap_factory awf;
+int start_size = 0;
+int end_size = 0;
 CRef Solver::propagate()
 {
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
@@ -705,10 +707,22 @@ CRef Solver::propagate()
                 std::cout << "total_prop: " << total_prop << std::endl;
                 std::cout << "total_cycle: " << total_cycle[i] << std::endl;
                 get_acc()[i]->print();
+                end_size = ca.size();
+                std::cout << "total_clause_size: " << end_size << std::endl;
+                std::cout << "origin_clause_size: " << start_size << std::endl;
+                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+                //handle exit logic,
             }
         }
         if (total_prop >= 2000000)
         {
+            end_size = ca.size();
+            std::cout << "total_clause_size: " << end_size << std::endl;
+            std::cout << "origin_clause_size: " << start_size << std::endl;
+            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            //handle exit logic,
             exit(0);
         }
         for (auto &&mc : get_acc())
@@ -717,8 +731,12 @@ CRef Solver::propagate()
     if (started && !real_started)
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
+        if (warmup_times == 0)
+        {
+            start_size = ca.size();
+        }
         warmup_times++;
-        if (warmup_times >= 1000000)
+        if (warmup_times >= 1000)
         {
             real_started = true;
         }

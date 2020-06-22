@@ -370,7 +370,6 @@ namespace MACC
         //unsigned long long total_watcher_list_foot_print = 0;
 
         unsigned long long watcher_min = static_cast<unsigned long long>(-1);
-        ;
         unsigned long long watcher_max = 0;
         void update_watcher_range(unsigned long long addr)
         {

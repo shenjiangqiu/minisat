@@ -45,7 +45,10 @@ namespace MACC
                                 next_c(w_num, 0),
                                 clause_read_waiting_queue(c_num),
                                 current_level_write_map(2 << 10),
-                                current_level_read_map(2 << 10)
+                                current_level_read_map(2 << 10),
+                                total_reads(0),
+                                total_writes(0)
+                                
 
     {
         //nothing to do
@@ -72,7 +75,7 @@ namespace MACC
         auto event_value = EventValue(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         event_value.type = EventType::ProcessClause;
         event_value.index = watcher_index;
-        auto result = m_cache.access(clause_addr);
+        auto result = m_cache.access(clause_addr,1);
         //
         auto latency = 0;
         //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
@@ -99,7 +102,7 @@ namespace MACC
         for (unsigned long i = 0; i < size_of_detail; i++)
         {
             auto detail = clause_detail[i];
-            auto result = m_cache.access(detail);
+            auto result = m_cache.access(detail,3);
             //here need to consider the remote modification
             // but currently , we only consider the original clause miss times
             if (result == cache::hit)
@@ -167,7 +170,7 @@ namespace MACC
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
 
-        auto result = m_cache.access(clause_addr);
+        auto result = m_cache.access(clause_addr,1);
         //auto blockAddr = cache::get_block_addr(clause_addr);
         update_clause_range(clause_addr);
 
@@ -246,7 +249,7 @@ namespace MACC
         std::cout << "m_hit " << get_m_hit() << std::endl;
         std::cout << "m_miss " << get_m_miss() << std::endl;
         std::cout << "m_hit_res " << get_m_hit_res() << std::endl;
-        std::cout << "clause_foot_print" << get_range_size_clause() << std::endl;
+        std::cout << "clause_foot_print " << get_range_size_clause() << std::endl;
         std::cout << "watcher_list_foot_print " << get_range_size_watcher() << std::endl;
         std::cout << m_cache << std::endl;
         std::cout << "total_read_old_times " << total_read_old_times << std::endl;
@@ -286,7 +289,7 @@ namespace MACC
         }
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
-        auto result = m_cache.access(addr);
+        auto result = m_cache.access(addr,0);
         //auto blockAddr = cache::get_block_addr(addr);
         update_watcher_range(addr);
 
@@ -366,6 +369,7 @@ namespace MACC
     unsigned long long total_latency = 0;
     void ACC::sync_stats()
     {
+        update_read_write_conflict();
         total_read_old_times += current_level_read_old_times;
         total_write_same_times += current_level_write_same_times;
         total_write_conflict_times += current_level_write_conflict_times;
@@ -834,12 +838,12 @@ namespace MACC
 
     void ACC::add_clause_read_set(assign_wrap *value, int index)
     {
-        for (auto &&literal : value->get_clause_literal(index))
+        for (auto literal : value->get_clause_literal(index))
             current_level_read_map[literal] += 1;
     }
     void ACC::add_clause_write_set(assign_wrap *value, int index)
     {
-        for (auto &&literal : value->get_clause_literal(index))
+        for (auto literal : value->get_clause_literal(index))
         {
             current_level_write_map[literal] += 1;
         }
@@ -848,7 +852,7 @@ namespace MACC
     int ACC::get_total_write_times(int literal)
     {
         int total = 0;
-        for (auto &&lit : {literal, -literal})
+        for (auto lit : {literal, -literal})
         {
             if (current_level_write_map.find(lit) != current_level_write_map.end())
             {
@@ -860,7 +864,7 @@ namespace MACC
     int ACC::get_total_read_times(int literal)
     {
         int total = 0;
-        for (auto &&lit : {literal, -literal})
+        for (auto lit : {literal, -literal})
         {
             if (current_level_read_map.find(lit) != current_level_read_map.end())
             {

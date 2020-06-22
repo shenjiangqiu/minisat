@@ -54,7 +54,9 @@ public:
     assign_wrap(assign_wrap &&other) = default;
     assign_wrap(const assign_wrap &other) = default;
     int get_value() const { return value; }
-    void set_addr(unsigned long long t_addr) { addr = t_addr; }                                          //watcher list addr
+    void set_addr(unsigned long long t_addr) {
+         addr = t_addr; 
+         }                                          //watcher list addr
     unsigned long long get_addr() const { return addr; }                                                 //watcher list addr
     unsigned long long get_clause_addr(int index) const { return modified_clause_list_items.at(index); } //clause addr
     void add_clause_literal(int index, int literal) { clause_literals[index].push_back(literal); } // for read
