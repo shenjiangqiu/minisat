@@ -31,7 +31,12 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/read_config.h"
 #include <map>
 using namespace Minisat;
-
+#ifndef SJQ_WARMUP
+#error "should define SJQ_WARMUP"
+#endif
+#ifndef SJQ_TOTAL_PROP
+#error "should define SJQ_TOTAL_PROP"
+#endif
 //=================================================================================================
 // Options:
 
@@ -715,7 +720,7 @@ CRef Solver::propagate()
                 //handle exit logic,
             }
         }
-        if (total_prop >= 2000000)
+        if (total_prop >= SJQ_TOTAL_PROP)
         {
             end_size = ca.size();
             std::cout << "total_clause_size: " << end_size << std::endl;
@@ -736,7 +741,7 @@ CRef Solver::propagate()
             start_size = ca.size();
         }
         warmup_times++;
-        if (warmup_times >= 1000)
+        if (warmup_times >=SJQ_WARMUP)
         {
             real_started = true;
         }

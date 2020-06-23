@@ -19,7 +19,7 @@ RCOBJS     = $(addsuffix r,  $(COBJS))
 
 
 CXX       ?= g++
-CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC
+CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC 
 LFLAGS    ?= -Wall
 
 COPTIMIZE ?= -O3
@@ -41,10 +41,10 @@ libd:	lib$(LIB)_debug.a
 libr:	lib$(LIB)_release.a
 
 ## Compile options
-%.o:			CFLAGS +=$(COPTIMIZE) -g -D DEBUG
-%.op:			CFLAGS +=$(COPTIMIZE) -pg -g -D NDEBUG
-%.od:			CFLAGS +=-O0 -g -D DEBUG
-%.or:			CFLAGS +=$(COPTIMIZE) -g -D NDEBUG
+%.o:			CFLAGS +=$(COPTIMIZE) -g -D DEBUG -DSJQ_WARMUP=1000000 -DSJQ_TOTAL_PROP=2000000
+%.op:			CFLAGS +=$(COPTIMIZE) -pg -g -D NDEBUG -DSJQ_WARMUP=1000000 -DSJQ_TOTAL_PROP=2000000
+%.od:			CFLAGS +=-O0 -g -D DEBUG -DSJQ_WARMUP=1000 -DSJQ_TOTAL_PROP=2000000
+%.or:			CFLAGS +=$(COPTIMIZE) -g -D NDEBUG -DSJQ_WARMUP=1000000 -DSJQ_TOTAL_PROP=2000000
 
 ## Link options
 $(EXEC):		LFLAGS += -g
