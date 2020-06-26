@@ -22,7 +22,7 @@ public:
     auto get_modified_by_range(int start, int end) const
     {
         auto start_iter = modified_clause_list_items.lower_bound(start);
-        auto end_iter = modified_clause_list_items.upper_bound(end);
+        auto end_iter = modified_clause_list_items.lower_bound(end);
         return std::make_pair(start_iter, end_iter);
     }
     unsigned int get_level() const { return level; }
@@ -54,16 +54,15 @@ public:
     assign_wrap(assign_wrap &&other) = default;
     assign_wrap(const assign_wrap &other) = default;
     int get_value() const { return value; }
-    void set_addr(unsigned long long t_addr) {
-         addr = t_addr; 
-         }                                          //watcher list addr
+    void set_addr(unsigned long long t_addr)
+    {
+        addr = t_addr;
+    }                                                                                                    //watcher list addr
     unsigned long long get_addr() const { return addr; }                                                 //watcher list addr
     unsigned long long get_clause_addr(int index) const { return modified_clause_list_items.at(index); } //clause addr
-    void add_clause_literal(int index, int literal) { clause_literals[index].push_back(literal); } // for read
+    void add_clause_literal(int index, int literal) { clause_literals[index].push_back(literal); }       // for read
     auto &get_clause_literal(int index) { return clause_literals[index]; }
 
-
-    
 private:
     unsigned long long clause_addr;
     int value;

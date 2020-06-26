@@ -247,10 +247,13 @@ namespace MACC
         {
             m_ready = false;
             value_queue.clear();
+            value_set.clear();
             //time_records.clear();
             assert(m_event_queue.empty());
             //m_event_queue.clear();
-
+            //watcher_access.clear();
+            //clause_access.clear();
+            assert(m_cache.get_on_going_misses() == 0);
             assert(std::all_of(vault_waiting_queue.begin(), vault_waiting_queue.end(), [](auto &the_queue) { return the_queue.empty(); }));
 
             assert(std::all_of(vault_busy.begin(), vault_busy.end(), [](bool a) { return a == false; }) == true);
@@ -270,6 +273,7 @@ namespace MACC
         void push_to_trail(assign_wrap *value)
         {
             value_queue.push_back(value);
+            value_set.insert(value);
         }
         int get_trail_size() const
         {
@@ -296,8 +300,18 @@ namespace MACC
         unsigned long long get_m_hit_res() const { return m_hit_res; }
         void print() const;
         int assign_to_vault(unsigned long long addr) { return (addr >> 7) & (c_num - 1); }
+        //auto &get_watcher_map() { return watcher_access; }
+        //auto &get_clause_map() { return clause_access; }
+        unsigned long long get_total_read_old_times() { return total_read_old_times; }
+        unsigned long long get_total_write_same_times() { return total_write_same_times; }
+        unsigned long long get_total_write_conflict_times() { return total_write_conflict_times; }
+
+        unsigned long long get_total_reads() { return total_reads; }
+        unsigned long long get_total_writes() { return total_writes; }
 
     private:
+        //std::unordered_map<unsigned long long, int> watcher_access;
+        //std::unordered_map<unsigned long long, int> clause_access;
         void add_clause_read_set(assign_wrap *value, int index);
         void add_clause_write_set(assign_wrap *value, int index);
         int get_total_write_times(int literal);
@@ -314,6 +328,7 @@ namespace MACC
         int c_num;
         bool m_ready;
         std::vector<assign_wrap *> value_queue;
+        std::set<assign_wrap *> value_set;
         //std::vector<assign_wrap*<Time_record>> time_records;
         int miss_latency;
         int watcher_process_latency;

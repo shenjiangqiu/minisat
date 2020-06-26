@@ -29,6 +29,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/sim_api.h"
 #include "core/sim_control.h"
 #include "core/read_config.h"
+#include <fstream>
 #include <map>
 using namespace Minisat;
 #ifndef SJQ_WARMUP
@@ -524,6 +525,8 @@ int start_size = 0;
 int end_size = 0;
 CRef Solver::propagate()
 {
+    std::ofstream real("real.txt", std::ios_base::app);
+
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
     //std::map<int, int> generate_relation_map;
@@ -542,8 +545,14 @@ CRef Solver::propagate()
     }
 
     //assign_wrap* shared_null;
+    std::unordered_map<unsigned long long, int> watcher_access;
+    std::unordered_map<unsigned long long, int> clause_access;
+    if (real_started)
+        real << "start prop" << std::endl;
     while (qhead < trail.size())
     {
+        if (real_started)
+            real << "start this p.x" << std::endl;
 
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
@@ -555,13 +564,13 @@ CRef Solver::propagate()
         Watcher *i, *j, *end;
         num_props++;
 
-        bool is_first;
+       
         assign_wrap *this_wrap = nullptr;
         if (real_started)
         {
-            is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
+            bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
 
-            if (is_first)
+            if (first)
             {
                 this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
                 lit_to_wrap[p.x] = this_wrap;
@@ -576,11 +585,20 @@ CRef Solver::propagate()
                 mc->push_to_trail(this_wrap);
             }
             this_wrap->set_addr((unsigned long long)((Watcher *)ws));
+            //watcher_access[(unsigned long long)((Watcher *)ws)]++;
+            auto init_addr = (unsigned long long)((Watcher *)ws);
+            auto times = (ws.size() + 7) / 8;
+            for (int access_iter = 0; access_iter < times; access_iter++)
+            {
+                watcher_access[init_addr + access_iter * 64]++;
+                real << (init_addr + access_iter * 64) << std::endl;
+            }
         }
 
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
+
             ii++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
@@ -594,9 +612,10 @@ CRef Solver::propagate()
 
             CRef cr = i->cref;
             Clause &c = ca[cr];
+            assert(&c == ca.lea(cr));
             if (real_started)
                 this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
-
+            clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
@@ -692,6 +711,29 @@ CRef Solver::propagate()
             this_cycle.push_back(mc->start_sim());
             //std::cout<<"finishedACC"<<std::endl;
         }
+        if (std::all_of(get_acc().begin(), get_acc().end(), [](auto acc) {
+                return acc->get_total_read_old_times() == get_acc()[0]->get_total_read_old_times() &&
+                       acc->get_total_write_same_times() == get_acc()[0]->get_total_write_same_times() &&
+                       acc->get_total_write_conflict_times() == get_acc()[0]->get_total_write_conflict_times() &&
+                       acc->get_total_reads() == get_acc()[0]->get_total_reads() &&
+                       acc->get_total_writes() == get_acc()[0]->get_total_writes();
+            }))
+        {
+            //std::cout << "match the read and writes" << std::endl;
+        }
+        else
+        {
+            std::cout << "not match" << std::endl;
+            std::for_each(get_acc().begin(), get_acc().end(), [](auto acc) {
+                std::cout << "get_total_read_old_times " << acc->get_total_read_old_times() << std::endl;
+                std::cout << "get_total_write_same_times " << acc->get_total_write_same_times() << std::endl;
+                std::cout << "get_total_write_conflict_times " << acc->get_total_write_conflict_times() << std::endl;
+                std::cout << "get_total_reads " << acc->get_total_reads() << std::endl;
+                std::cout << "get_total_writes " << acc->get_total_writes() << std::endl;
+                std::cout << "\n\n";
+            });
+            exit(1);
+        }
         for (auto value : lit_to_wrap)
         {
             delete value.second;
@@ -721,6 +763,7 @@ CRef Solver::propagate()
             }
         }
         if (total_prop >= SJQ_TOTAL_PROP)
+        //if (total_prop >= 1)
         {
             end_size = ca.size();
             std::cout << "total_clause_size: " << end_size << std::endl;
@@ -728,10 +771,7 @@ CRef Solver::propagate()
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
             //handle exit logic,
-            exit(0);
         }
-        for (auto &&mc : get_acc())
-            mc->clear();
     }
     if (started && !real_started)
     {
@@ -741,12 +781,53 @@ CRef Solver::propagate()
             start_size = ca.size();
         }
         warmup_times++;
-        if (warmup_times >=SJQ_WARMUP)
+        if (warmup_times >= SJQ_WARMUP)
+        //if (warmup_times >= 1000)
         {
             real_started = true;
         }
     }
+    if (real_started)
+    {
+        /*
+        std::for_each(m_acc.begin(), m_acc.end(), [&](ACC *t_acc) {
+            if (t_acc->get_watcher_map() == watcher_access)
+            {
+                //std::cout << "equal watcher!" << std::endl;
+            }
+            else
+            {
+                std::cout << "watcher not equal!" << std::endl;
+                std::cout << t_acc->get_watcher_map().size() << ", " << watcher_access.size() << std::endl;
+            }
+            if (t_acc->get_clause_map() == clause_access)
+            {
+                //std::cout << "equal clause!" << std::endl;
+            }
+            else
+            {
+                std::cout << "clause not equal!" << std::endl;
 
+                std::ofstream out("c_real.txt");
+                std::cout << t_acc->get_clause_map().size() << ", " << clause_access.size() << std::endl;
+                for (auto elem : clause_access)
+                {
+                    out << elem.first << " " << elem.second << std::endl;
+                }
+                out.close();
+                std::ofstream out2("c_acc.txt");
+                for (auto elem : t_acc->get_clause_map())
+                {
+                    out2 << elem.first << " " << elem.second << std::endl;
+                }
+            }
+            //std::cout << "end this acc" << std::endl;
+            //exit(0);
+        });
+        //std::cout << "\nend the prop\n"
+        //          << std::endl;
+        */
+    }
     return confl;
 }
 

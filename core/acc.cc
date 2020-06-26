@@ -3,6 +3,7 @@
 #include <memory>
 #include <fmt/core.h>
 #include <fmt/format.h>
+#include <fstream>
 namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
@@ -33,8 +34,8 @@ namespace MACC
                                 m_using_clause_unit(0),
                                 m_event_queue(),
                                 vault_waiting_queue(clause_proc_num),
-                                vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 256, 256)), //16kb
-                                m_cache(1 << 4, 1 << 15, cache::lru, 256, 256),                            //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
+                                vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 1024, 1024, "vault cache")), //16kb
+                                m_cache(1 << 4, 1 << 15, cache::lru, 1024, 1024, "l3cache"),                                //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
                                 vault_memory_access_latency(vault_memory_access_latency),
                                 cpu_to_vault_latency(cpu_to_vault_latency),
@@ -48,7 +49,6 @@ namespace MACC
                                 current_level_read_map(2 << 10),
                                 total_reads(0),
                                 total_writes(0)
-                                
 
     {
         //nothing to do
@@ -75,7 +75,7 @@ namespace MACC
         auto event_value = EventValue(EventType::ProcessClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         event_value.type = EventType::ProcessClause;
         event_value.index = watcher_index;
-        auto result = m_cache.access(clause_addr,1);
+        auto result = m_cache.access(clause_addr, 1);
         //
         auto latency = 0;
         //remaind here, now need to detail the latency! 1, the value latency 2, the clause latency,3, the sync and cache coherence latency
@@ -102,7 +102,7 @@ namespace MACC
         for (unsigned long i = 0; i < size_of_detail; i++)
         {
             auto detail = clause_detail[i];
-            auto result = m_cache.access(detail,3);
+            auto result = m_cache.access(detail, 3);
             //here need to consider the remote modification
             // but currently , we only consider the original clause miss times
             if (result == cache::hit)
@@ -170,7 +170,18 @@ namespace MACC
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
 
-        auto result = m_cache.access(clause_addr,1);
+        auto result = m_cache.try_access(clause_addr, 1);
+        if (result == cache::miss)
+        {
+            if (!dram_bandwith_manager.tryAddUse(1))
+            {
+                //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
+                //std::cout << "can't use more bandwidth" << std::endl;
+                return;
+            }
+        }
+        result = m_cache.access(clause_addr, 1);
+
         //auto blockAddr = cache::get_block_addr(clause_addr);
         update_clause_range(clause_addr);
 
@@ -204,29 +215,26 @@ namespace MACC
         {
             latency = 16;
         }
-        else
+        else if (result == cache::hit_res)
         {
             latency = miss_latency;
+        }
+        else
+        {
+            assert(result == cache::resfail);
+            return; //block here
         }
         auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         event_value.is_miss = miss_flag;
         //event_value.type = EventType::ProcessClause;
         //event_value.index = watcher_index;
-        if (result == cache::miss)
-        {
-            if (!dram_bandwith_manager.tryAddUse(1))
-            {
-                //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
-                //std::cout << "can't use more bandwidth" << std::endl;
-                return;
-            }
-        }
+
         clause_buffer_size[vault_index]++; // fix bug here: bug: add buffer size before test the dram bandwidth, fix: after test the bandwidth.
         //std::cout << dram_bandwith_manager << std::endl;
         vault_waiting_queue[vault_index].pop();
         // send miss request to memory controller
         // No event for process_clause generated here
-
+        //clause_access[clause_addr]++;
         //auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         auto event = Event(event_value, end_time, end_time + latency);
         m_event_queue.push(event);
@@ -279,6 +287,7 @@ namespace MACC
 
     void ACC::handle_new_watch_list(std::queue<std::pair<int, assign_wrap *>> &waiting_queue, unsigned long long end_time, int watcher_index)
     {
+        //std::ofstream acc("acc.txt", std::ios_base::app);
         int start = waiting_queue.front().first;
 
         int total = waiting_queue.front().second->get_watcher_size();
@@ -289,7 +298,9 @@ namespace MACC
         }
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
-        auto result = m_cache.access(addr,0);
+        auto result = m_cache.access(addr, 0);
+        //watcher_access[addr]++;
+        //auto times = (w_size + 7) / 8;
         //auto blockAddr = cache::get_block_addr(addr);
         update_watcher_range(addr);
 
@@ -383,6 +394,7 @@ namespace MACC
     }
     int ACC::start_sim()
     {
+
         assert(m_event_queue.empty());
         assert(!m_memory_ctr_busy);
         assert(mem_ctr_queue.empty());
@@ -396,6 +408,9 @@ namespace MACC
         assert(dram_bandwith_manager.empty());
         static unsigned long long global_times = 0;
         global_times++;
+
+        //std::ofstream acc("acc.txt", std::ios_base::app);
+        //acc << "start sim" << std::endl;
 
         if (value_queue.empty())
             return 0;
@@ -527,6 +542,11 @@ namespace MACC
 
                 spdlog::debug(std::string("fill:addr: ") + std::to_string(value_of_event->get_addr() + 8 * event_value.index) + std::string(",at cycle:") + std::to_string(end_time));
                 m_cache.fill(addr);
+                static int temp = 0;
+                for (int i = 0; i < c_num; i++)
+                {
+                    handle_vault_process_mode2((temp + i) % c_num, end_time);
+                }
                 break;
             }
             case EventType::ReadWatcherList:
@@ -706,7 +726,7 @@ namespace MACC
                 //check if generate new assignment
                 //auto iter = value_of_event->get_generated_assignments().find(event_value.index);
                 auto generated = value_of_event->get_generated(event_value.index);
-                if (generated)
+                if (generated && value_set.find(generated) != value_set.end())
                 {
 
                     waiting_queue.push(std::make_pair(0, generated));
