@@ -525,7 +525,7 @@ int start_size = 0;
 int end_size = 0;
 CRef Solver::propagate()
 {
-    std::ofstream real("real.txt", std::ios_base::app);
+    //std::ofstream real("real.txt", std::ios_base::app);
 
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
@@ -545,15 +545,11 @@ CRef Solver::propagate()
     }
 
     //assign_wrap* shared_null;
-    std::unordered_map<unsigned long long, int> watcher_access;
-    std::unordered_map<unsigned long long, int> clause_access;
-    if (real_started)
-        real << "start prop" << std::endl;
+    //std::unordered_map<unsigned long long, int> watcher_access;
+    //std::unordered_map<unsigned long long, int> clause_access;
+
     while (qhead < trail.size())
     {
-        if (real_started)
-            real << "start this p.x" << std::endl;
-
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
@@ -586,13 +582,7 @@ CRef Solver::propagate()
             }
             this_wrap->set_addr((unsigned long long)((Watcher *)ws));
             //watcher_access[(unsigned long long)((Watcher *)ws)]++;
-            auto init_addr = (unsigned long long)((Watcher *)ws);
-            auto times = (ws.size() + 7) / 8;
-            for (int access_iter = 0; access_iter < times; access_iter++)
-            {
-                watcher_access[init_addr + access_iter * 64]++;
-                real << (init_addr + access_iter * 64) << std::endl;
-            }
+            
         }
 
         int ii = 0;
@@ -615,7 +605,7 @@ CRef Solver::propagate()
             assert(&c == ca.lea(cr));
             if (real_started)
                 this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
-            clause_access[(unsigned long long)ca.lea(cr)]++;
+            //clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
