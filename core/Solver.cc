@@ -560,7 +560,6 @@ CRef Solver::propagate()
         Watcher *i, *j, *end;
         num_props++;
 
-       
         assign_wrap *this_wrap = nullptr;
         if (real_started)
         {
@@ -582,7 +581,6 @@ CRef Solver::propagate()
             }
             this_wrap->set_addr((unsigned long long)((Watcher *)ws));
             //watcher_access[(unsigned long long)((Watcher *)ws)]++;
-            
         }
 
         int ii = 0;
@@ -752,14 +750,16 @@ CRef Solver::propagate()
                 //handle exit logic,
             }
         }
+        //if (total_prop >=50020)
         if (total_prop >= SJQ_TOTAL_PROP)
-        //if (total_prop >= 1)
         {
+
             end_size = ca.size();
             std::cout << "total_clause_size: " << end_size << std::endl;
             std::cout << "origin_clause_size: " << start_size << std::endl;
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            exit(0);
             //handle exit logic,
         }
     }
@@ -936,6 +936,7 @@ lbool Solver::search(int nof_conflicts)
     for (;;)
     {
         CRef confl = propagate();
+
         if (confl != CRef_Undef)
         {
             // CONFLICT
