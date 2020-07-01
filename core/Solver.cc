@@ -750,8 +750,8 @@ CRef Solver::propagate()
                 //handle exit logic,
             }
         }
-        //if (total_prop >=50020)
-        if (total_prop >= SJQ_TOTAL_PROP)
+        if (total_prop >=3000000)
+        //if (total_prop >= SJQ_TOTAL_PROP)
         {
 
             end_size = ca.size();
@@ -771,8 +771,8 @@ CRef Solver::propagate()
             start_size = ca.size();
         }
         warmup_times++;
-        if (warmup_times >= SJQ_WARMUP)
-        //if (warmup_times >= 1000)
+        //if (warmup_times >= SJQ_WARMUP)
+        if (warmup_times >= 100)
         {
             real_started = true;
         }
