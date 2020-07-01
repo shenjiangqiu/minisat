@@ -545,7 +545,7 @@ CRef Solver::propagate()
     if (started and !real_started)
     {
         warmup++;
-        if (warmup >= 1000)
+        if (warmup >= 10000000)
         {
             real_started = true;
         }
