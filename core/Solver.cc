@@ -772,7 +772,7 @@ CRef Solver::propagate()
         }
         warmup_times++;
         //if (warmup_times >= SJQ_WARMUP)
-        if (warmup_times >= 100)
+        if (warmup_times >= 10000000)
         {
             real_started = true;
         }
