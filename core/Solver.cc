@@ -545,7 +545,7 @@ CRef Solver::propagate()
     if (started and !real_started)
     {
         warmup++;
-        if (warmup >= 100'0000)
+        if (warmup >= 1000)
         {
             real_started = true;
         }
@@ -566,7 +566,7 @@ CRef Solver::propagate()
 
         std::cout << "miss: " << total_miss << std::endl;
     }
-    if (total_propagate >= 200'0002)
+    if (total_propagate >= 3000000)
     {
         exit(0);
     }
