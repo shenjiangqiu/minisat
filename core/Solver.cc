@@ -22,7 +22,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
-
+#include <iostream>
 using namespace Minisat;
 
 //=================================================================================================
@@ -463,20 +463,31 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |    Post-conditions:
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
-int total_prop = 0;
-
+unsigned long long total_prop = 0;
+unsigned long long total_while = 0;
+unsigned long long total_for = 0;
+unsigned long long total_clause = 0;
 CRef Solver::propagate()
 {
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
     total_prop++;
-    if (total_prop > 3000000)
+    if (total_prop % 2000000 == 0)
     {
-        exit(0);
+        std::cout << "reach " << total_prop << std::endl;
+        std::cout << "total_while= " << total_while << std::endl;
+        std::cout << "total_for= " << total_for << std::endl;
+        std::cout << "total_clause= " << total_clause << std::endl;
+        std::cout.flush();
+        total_while = 0;
+        total_for = 0;
+        total_clause = 0;
     }
+   
     while (qhead < trail.size())
     {
+        total_while++;
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         vec<Watcher> &ws = watches[p];
         Watcher *i, *j, *end;
@@ -484,6 +495,7 @@ CRef Solver::propagate()
 
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
+            total_for++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
             if (value(blocker) == l_True)
@@ -491,7 +503,7 @@ CRef Solver::propagate()
                 *j++ = *i++;
                 continue;
             }
-
+            total_clause++;
             // Make sure the false literal is data[1]:
             CRef cr = i->cref;
             Clause &c = ca[cr];
