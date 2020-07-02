@@ -19,7 +19,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 #include <math.h>
-
+#include<fstream>
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include <iostream>
@@ -467,6 +467,19 @@ unsigned long long total_prop = 0;
 unsigned long long total_while = 0;
 unsigned long long total_for = 0;
 unsigned long long total_clause = 0;
+unsigned long long warmup;
+unsigned long long max_prop;
+class init_global{
+    public:
+    init_global(){
+        std::ifstream ifile("sjq.conf");
+        ifile>>warmup;
+        ifile>>max_prop;
+        std::cout<<warmup<<" "<<max_prop<<std::endl;
+    }
+};
+init_global m_init;
+
 CRef Solver::propagate()
 {
     CRef confl = CRef_Undef;
@@ -484,6 +497,10 @@ CRef Solver::propagate()
         total_for = 0;
         total_clause = 0;
     }
+    if(total_prop> max_prop){
+        exit(0);
+    }
+    
    
     while (qhead < trail.size())
     {
