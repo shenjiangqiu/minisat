@@ -23,6 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include <iostream>
+#include <chrono>
 using namespace Minisat;
 
 //=================================================================================================
@@ -467,14 +468,23 @@ unsigned long long total_prop = 0;
 unsigned long long total_while = 0;
 unsigned long long total_for = 0;
 unsigned long long total_clause = 0;
+unsigned long long total_clause_nums=0;
 unsigned long long warmup;
 unsigned long long max_prop;
+using clock_type=std::chrono::high_resolution_clock;
+using time_point_type=std::chrono::time_point<clock_type>;
+
+time_point_type tstart;
+time_point_type tend;
 class init_global{
     public:
     init_global(){
         std::ifstream ifile("sjq.conf");
         ifile>>warmup;
         ifile>>max_prop;
+        tstart=clock_type::now();
+        tend=clock_type::now();
+
         std::cout<<warmup<<" "<<max_prop<<std::endl;
     }
 };
@@ -488,14 +498,25 @@ CRef Solver::propagate()
     total_prop++;
     if (total_prop % 2000000 == 0)
     {
+        //get current time and duration
+        tend=clock_type::now();
+        auto duration=tend-tstart;
+
+        //output the stats
         std::cout << "reach " << total_prop << std::endl;
         std::cout << "total_while= " << total_while << std::endl;
         std::cout << "total_for= " << total_for << std::endl;
         std::cout << "total_clause= " << total_clause << std::endl;
+        std::cout << "total_clause_nums= " << total_clause_nums << std::endl;
+        std::cout<<"time= "<<std::chrono::duration_cast<std::chrono::seconds>(duration).count()<<std::endl;
         std::cout.flush();
+
+        //update the stats for next output
+        tstart=tend;
         total_while = 0;
         total_for = 0;
         total_clause = 0;
+        total_clause_nums=0;
     }
     if(total_prop> max_prop){
         exit(0);
@@ -536,6 +557,7 @@ CRef Solver::propagate()
             if (first != blocker && value(first) == l_True)
             {
                 *j++ = w;
+                total_clause_nums+=1;
                 continue;
             }
 
@@ -546,9 +568,10 @@ CRef Solver::propagate()
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
+                    total_clause_nums+=(k+1);
                     goto NextClause;
                 }
-
+            total_clause_nums+=c.size();
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False)
