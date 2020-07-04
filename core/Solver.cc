@@ -491,7 +491,7 @@ public:
         tstart = clock_type::now();
         tend = clock_type::now();
 
-        std::cout << warmup << " " << max_prop << std::endl;
+        std::cout << enable_stop<<" "<<warmup << " " << max_prop << std::endl;
     }
 };
 init_global m_init;
