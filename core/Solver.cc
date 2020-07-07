@@ -618,12 +618,6 @@ CRef Solver::propagate()
                 //this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
                 //this_wrap->add_clause_literal(ii - 1, first);
             }
-            if (first != blocker && value(first) == l_True)
-            {
-                *j++ = w;
-                continue;
-            }
-
             if (real_started)
             {
                 //std::cout<<ii-1<<std::endl;
@@ -632,6 +626,12 @@ CRef Solver::propagate()
                 this_wrap->add_clause_literal(ii - 1, c[0]);
                 this_wrap->add_clause_literal(ii - 1, c[1]);
             }
+            if (first != blocker && value(first) == l_True)
+            {
+                *j++ = w;
+                continue;
+            }
+
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
@@ -750,7 +750,7 @@ CRef Solver::propagate()
                 //handle exit logic,
             }
         }
-        if (total_prop >=3000000)
+        if (total_prop >= 3000000)
         //if (total_prop >= SJQ_TOTAL_PROP)
         {
 

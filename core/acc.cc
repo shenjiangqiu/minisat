@@ -176,21 +176,26 @@ namespace MACC
         // now need to consider the situation: may process multiple clauses. need to access multiple times and
 
         //how many access to this clause
-        int use = 0;
-        bool result = cache::hit;
-        for (int i = 0; i < clause_size; i++)
+
+        auto result = cache::hit;
+        std::set<unsigned long long> miss_set;
+        for (auto i = 0u; i < clause_size; i++)
         {
+
             if (m_cache.try_access(clause_addr, 1) == cache::miss)
             {
-                user++;
+                miss_set.insert(clause_addr >> 6);
                 result = cache::miss;
-            }else if(m_access.try_access(clause_addr,1)==cache::res_fail){
+            }
+            else if (m_cache.try_access(clause_addr, 1) == cache::resfail)
+            {
+                //resfail need wait
                 return;
             }
         }
         if (result == cache::miss)
         {
-            if (!dram_bandwith_manager.tryAddUse(use))
+            if (!dram_bandwith_manager.tryAddUse(miss_set.size()))
             {
                 //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
                 //std::cout << "can't use more bandwidth" << std::endl;
@@ -201,15 +206,17 @@ namespace MACC
         int latency = 0;
         bool miss_flag = false;
 
+        unsigned int real_miss = 0;
+
         //access all the clauses(these are get from the trace, not really all the clauses)
-        for (int i = 0; i < clause_size; i++)
+        for (unsigned int i = 0; i < clause_size; i++)
         {
             result = m_cache.access(clause_addr, 1);
+
             if (result == cache::miss)
             {
                 miss_flag = true;
-            
-
+                real_miss++;
                 auto miss_event_value = EventValue(EventType::missAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
                 auto miss_event = Event(miss_event_value, end_time, miss_latency + end_time);
                 //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
@@ -217,6 +224,8 @@ namespace MACC
                 m_event_queue.push(miss_event);
             }
         }
+
+        assert(real_miss == miss_set.size());
         //auto blockAddr = cache::get_block_addr(clause_addr);
         update_clause_range(clause_addr);
 

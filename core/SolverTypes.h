@@ -144,6 +144,7 @@ typedef RegionAllocator<uint32_t>::Ref CRef;
 
 class Clause
 {
+    public:
     struct
     {
         unsigned mark : 2;
