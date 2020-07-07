@@ -602,7 +602,7 @@ CRef Solver::propagate()
             Clause &c = ca[cr];
             assert(&c == ca.lea(cr));
             if (real_started)
-                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&c)); //currently we don't care about the address//no we need it!!!!
+                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
             //clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
             if (c[0] == false_lit)

@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fstream>
+#include <assert.h>
 namespace MACC
 {
     std::ostream &operator<<(std::ostream &os, const ACC &acc)
@@ -165,23 +166,57 @@ namespace MACC
         auto value_of_event = value_of_vault_waitng_queue.value;
 
         auto clause_addr = value_of_event->get_clause_addr(watcher_index); // the address of the clause
+        auto clause_size = value_of_event->get_clause_detail(watcher_index).size();
+        assert(clause_size >= 2);
 
         //auto pushed_to_others = value_of_event->get_pushed(); // modified other's watcher list
         //auto clause_detail = value_of_event->get_clause_detail(watcher_index); //vector about detailed read value; content type: unsigned long long
         //auto size_of_detail = clause_detail.size();
+        //todo here:
+        // now need to consider the situation: may process multiple clauses. need to access multiple times and
 
-        auto result = m_cache.try_access(clause_addr, 1);
+        //how many access to this clause
+        int use = 0;
+        bool result = cache::hit;
+        for (int i = 0; i < clause_size; i++)
+        {
+            if (m_cache.try_access(clause_addr, 1) == cache::miss)
+            {
+                user++;
+                result = cache::miss;
+            }else if(m_access.try_access(clause_addr,1)==cache::res_fail){
+                return;
+            }
+        }
         if (result == cache::miss)
         {
-            if (!dram_bandwith_manager.tryAddUse(1))
+            if (!dram_bandwith_manager.tryAddUse(use))
             {
                 //std::cout << fmt::format("in valut:{}, can't read clause because dram full", vault_index);
                 //std::cout << "can't use more bandwidth" << std::endl;
                 return;
             }
         }
-        result = m_cache.access(clause_addr, 1);
 
+        int latency = 0;
+        bool miss_flag = false;
+
+        //access all the clauses(these are get from the trace, not really all the clauses)
+        for (int i = 0; i < clause_size; i++)
+        {
+            result = m_cache.access(clause_addr, 1);
+            if (result == cache::miss)
+            {
+                miss_flag = true;
+            
+
+                auto miss_event_value = EventValue(EventType::missAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
+                auto miss_event = Event(miss_event_value, end_time, miss_latency + end_time);
+                //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
+                spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
+                m_event_queue.push(miss_event);
+            }
+        }
         //auto blockAddr = cache::get_block_addr(clause_addr);
         update_clause_range(clause_addr);
 
@@ -198,32 +233,15 @@ namespace MACC
             total_writes++;
         }
 
-        int latency = 0;
-        bool miss_flag = false;
-        if (result == cache::miss)
+        if (!miss_flag)
         {
-            miss_flag = true;
-            latency = miss_latency;
-
-            auto miss_event_value = EventValue(EventType::missAccess, watcher_index, 1, value_of_event, HardwareType::watcherListUnit, 0, clause_addr, vault_index, -1);
-            auto miss_event = Event(miss_event_value, end_time, miss_latency + end_time);
-            //spdlog::debug(std::string("VaultCacheMiss addr:") + std::to_string(clause_addr) + std::string(", at cycle:") + std::to_string(end_time));
-            spdlog::debug("VaultCacheMissDetailed addr:{}, at cycle:{}, on vault:{}", clause_addr, end_time, vault_index);
-            m_event_queue.push(miss_event);
-        }
-        else if (result == cache::hit)
-        {
-            latency = 16;
-        }
-        else if (result == cache::hit_res)
-        {
-            latency = miss_latency;
+            latency = 16 + literal_vector.size();
         }
         else
         {
-            assert(result == cache::resfail);
-            return; //block here
+            latency = miss_latency + literal_vector.size();
         }
+
         auto event_value = EventValue(EventType::FinishedReadClause, watcher_index, 1, value_of_event, HardwareType::ClauseUnit, 0, clause_addr, vault_index, -1);
         event_value.is_miss = miss_flag;
         //event_value.type = EventType::ProcessClause;
