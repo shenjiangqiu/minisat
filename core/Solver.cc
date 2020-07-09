@@ -750,8 +750,8 @@ CRef Solver::propagate()
                 //handle exit logic,
             }
         }
-        if (total_prop >= 3000000)
-        //if (total_prop >= SJQ_TOTAL_PROP)
+        //if (total_prop >= 3000000)
+        if (total_prop >= SJQ_TOTAL_PROP)
         {
 
             end_size = ca.size();
@@ -771,8 +771,8 @@ CRef Solver::propagate()
             start_size = ca.size();
         }
         warmup_times++;
-        //if (warmup_times >= SJQ_WARMUP)
-        if (warmup_times >= 100)
+        if (warmup_times >= SJQ_WARMUP)
+        //if (warmup_times >= 100)
         {
             real_started = true;
         }
@@ -1081,6 +1081,74 @@ static double luby(double y, int x)
     }
 
     return pow(y, seq);
+}
+std::ofstream &Minisat::operator<<(std::ofstream &of, const Solver &solver)
+{
+    of << solver.model << solver.conflict << solver.verbosity
+       << solver.var_decay << solver.clause_decay << solver.random_var_freq << solver.random_seed
+       << solver.luby_restart << solver.ccmin_mode << solver.phase_saving << solver.rnd_pol
+       << solver.rnd_init_act << solver.garbage_frac << solver.restart_first << solver.restart_inc
+       << solver.learntsize_factor << solver.learntsize_inc << solver.learntsize_adjust_start_confl
+       << solver.learntsize_adjust_inc << solver.solves << solver.starts << solver.decisions << solver.rnd_decisions << solver.propagations << solver.conflicts
+       << solver.dec_vars << solver.clauses_literals << solver.learnts_literals << solver.max_literals << solver.tot_literals
+       << solver.ok
+       << solver.clauses
+       << solver.learnts
+       << solver.cla_inc
+       << solver.activity
+       << solver.var_inc
+       << solver.watches
+       << solver.assigns
+       << solver.polarity
+       << solver.decision
+       << solver.trail
+       << solver.trail_lim
+       << solver.vardata
+       << solver.qhead
+       << solver.simpDB_assigns
+       << solver.simpDB_props
+       << solver.assumptions
+       << solver.order_heap
+       << solver.progress_estimate
+       << solver.remove_satisfied
+       << solver.ca
+       << solver.seen
+       << solver.analyze_stack
+       << solver.analyze_toclear
+       << solver.add_tmp
+       << solver.max_learnts
+       << solver.learntsize_adjust_confl
+       << solver.learntsize_adjust_cnt
+       << solver.conflict_budget
+       << solver.propagation_budget
+       << solver.asynch_interrupt;
+    return of;
+}
+std::ifstream &Minisat::operator>>(std::ifstream &in, Solver &solver)
+{
+    in >> solver.model >> solver.conflict >> solver.verbosity >> solver.var_decay >>
+        solver.clause_decay >> solver.random_var_freq >>
+        solver.random_seed >> solver.luby_restart >>
+        solver.ccmin_mode >> solver.phase_saving >>
+        solver.rnd_pol >> solver.rnd_init_act >>
+        solver.garbage_frac >> solver.restart_first >>
+        solver.restart_inc >> solver.learntsize_factor >>
+        solver.learntsize_inc >> solver.learntsize_adjust_start_confl >>
+        solver.learntsize_adjust_inc >> solver.solves >>
+        solver.starts >> solver.decisions >> solver.rnd_decisions >>
+        solver.propagations >> solver.conflicts >> solver.dec_vars >>
+        solver.clauses_literals >> solver.learnts_literals >> solver.max_literals >>
+        solver.tot_literals >> solver.ok >> solver.clauses >> solver.learnts >>
+        solver.cla_inc >> solver.activity >> solver.var_inc >> solver.watches >>
+        solver.assigns >> solver.polarity >> solver.decision >> solver.trail >>
+        solver.trail_lim >> solver.vardata >> solver.qhead >> solver.simpDB_assigns >>
+        solver.simpDB_props >> solver.assumptions >> solver.order_heap >>
+        solver.progress_estimate >> solver.remove_satisfied >> solver.ca >>
+        solver.seen >> solver.analyze_stack >> solver.analyze_toclear >>
+        solver.add_tmp >> solver.max_learnts >> solver.learntsize_adjust_confl >>
+        solver.learntsize_adjust_cnt >> solver.conflict_budget >>
+        solver.propagation_budget >> solver.asynch_interrupt;
+    return in;
 }
 
 // NOTE: assumptions passed in member-variable 'assumptions'.
