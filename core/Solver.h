@@ -31,8 +31,7 @@ namespace Minisat
 {
 
     class Solver;
-    std::ofstream &operator<<(std::ofstream &of, const Solver &solver);
-    std::ifstream &operator>>(std::ifstream &in,  Solver &solver);
+
     //=================================================================================================
     // Solver -- the main class:
 
@@ -40,8 +39,145 @@ namespace Minisat
     {
 
     public:
-        void save_to_file(const std::string name);
-        void load_from_file(const std::string name);
+        bool operator==(const Solver &other)
+        {
+            if (started == other.started and
+                model == other.model and
+                conflict == other.conflict and
+                verbosity == other.verbosity and
+                var_decay == other.var_decay and
+                clause_decay == other.clause_decay and
+                random_var_freq == other.random_var_freq and
+                random_seed == other.random_seed and
+                luby_restart == other.luby_restart and
+                ccmin_mode == other.ccmin_mode and
+                phase_saving == other.phase_saving and
+                rnd_pol == other.rnd_pol and
+                rnd_init_act == other.rnd_init_act and
+                garbage_frac == other.garbage_frac and
+                restart_first == other.restart_first and
+                restart_inc == other.restart_inc and
+                learntsize_factor == other.learntsize_factor and
+                learntsize_inc == other.learntsize_inc and
+                learntsize_adjust_start_confl == other.learntsize_adjust_start_confl and
+                learntsize_adjust_inc == other.learntsize_adjust_inc and
+                solves == other.solves and
+                starts == other.starts and
+                decisions == other.decisions and
+                rnd_decisions == other.rnd_decisions and
+                propagations == other.propagations and
+                conflicts == other.conflicts and
+                dec_vars == other.dec_vars and
+                clauses_literals == other.clauses_literals and
+                learnts_literals == other.learnts_literals and
+                max_literals == other.max_literals and
+                tot_literals == other.tot_literals and
+                ok == other.ok and
+                clauses == other.clauses and
+                learnts == other.learnts and
+                cla_inc == other.cla_inc and
+                activity == other.activity and
+                var_inc == other.var_inc and
+                watches == other.watches and
+                assigns == other.assigns and
+                polarity == other.polarity and
+                decision == other.decision and
+                trail == other.trail and
+                trail_lim == other.trail_lim and
+                vardata == other.vardata and
+                qhead == other.qhead and
+                simpDB_assigns == other.simpDB_assigns and
+                simpDB_props == other.simpDB_props and
+                assumptions == other.assumptions and
+                order_heap == other.order_heap and
+                progress_estimate == other.progress_estimate and
+                remove_satisfied == other.remove_satisfied and
+                ca == other.ca and
+                seen == other.seen and
+                analyze_stack == other.analyze_stack and
+                analyze_toclear == other.analyze_toclear and
+                add_tmp == other.add_tmp and
+                max_learnts == other.max_learnts and
+                learntsize_adjust_confl == other.learntsize_adjust_confl and
+                learntsize_adjust_cnt == other.learntsize_adjust_cnt and
+                conflict_budget == other.conflict_budget and
+                propagation_budget == other.propagation_budget and
+                asynch_interrupt == other.asynch_interrupt)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int version)
+        {
+            ar &started;
+            ar &model;
+            ar &conflict;
+            ar &verbosity;
+            ar &var_decay;
+            ar &clause_decay;
+            ar &random_var_freq;
+            ar &random_seed;
+            ar &luby_restart;
+            ar &ccmin_mode;
+            ar &phase_saving;
+            ar &rnd_pol;
+            ar &rnd_init_act;
+            ar &garbage_frac;
+            ar &restart_first;
+            ar &restart_inc;
+            ar &learntsize_factor;
+            ar &learntsize_inc;
+            ar &learntsize_adjust_start_confl;
+            ar &learntsize_adjust_inc;
+            ar &solves;
+            ar &starts;
+            ar &decisions;
+            ar &rnd_decisions;
+            ar &propagations;
+            ar &conflicts;
+            ar &dec_vars;
+            ar &clauses_literals;
+            ar &learnts_literals;
+            ar &max_literals;
+            ar &tot_literals;
+            ar &ok;
+            ar &clauses;
+            ar &learnts;
+            ar &cla_inc;
+            ar &activity;
+            ar &var_inc;
+            ar &watches;
+            ar &assigns;
+            ar &polarity;
+            ar &decision;
+            ar &trail;
+            ar &trail_lim;
+            ar &vardata;
+            ar &qhead;
+            ar &simpDB_assigns;
+            ar &simpDB_props;
+            ar &assumptions;
+            ar &order_heap;
+            ar &progress_estimate;
+            ar &remove_satisfied;
+            ar &ca;
+            ar &seen;
+            ar &analyze_stack;
+            ar &analyze_toclear;
+            ar &add_tmp;
+            ar &max_learnts;
+            ar &learntsize_adjust_confl;
+            ar &learntsize_adjust_cnt;
+            ar &conflict_budget;
+            ar &propagation_budget;
+            ar &asynch_interrupt;
+        }
+
         bool started = false;
         // Constructor/Destructor:
         //
@@ -146,27 +282,49 @@ namespace Minisat
         uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
         struct VarData
         {
-            template <typename OSTYPE>
-            friend OSTYPE &operator<<(OSTYPE &of, const VarData &v);
-            template <typename ISTYPE>
-            friend ISTYPE &operator>>(ISTYPE &in, VarData &v);
+            bool operator==(const VarData &other)
+            {
+                if (reason == other.reason and level == other.level)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            template <class Archive>
+            void serialize(Archive &ar, const unsigned int version)
+            {
+                ar &reason;
+                ar &level;
+            }
 
             CRef reason;
             int level;
         };
         struct Watcher
         {
-            template <typename OSTYPE>
-            friend OSTYPE &operator<<(OSTYPE &of, const Watcher &v);
-            template <typename ISTYPE>
-            friend ISTYPE &operator>>(ISTYPE &in, Watcher &v);
+            template <class Archive>
+            void serialize(Archive &ar, const unsigned int version)
+            {
+                ar &cref;
+                ar &blocker;
+            }
             CRef cref;
             Lit blocker;
             Watcher(CRef cr, Lit p) : cref(cr), blocker(p) {}
             bool operator==(const Watcher &w) const { return cref == w.cref; }
             bool operator!=(const Watcher &w) const { return cref != w.cref; }
         };
-
+        struct WatcherDeleted
+        {
+            const ClauseAllocator &ca;
+            WatcherDeleted(const ClauseAllocator &_ca) : ca(_ca) {}
+            bool operator()(const Watcher &w) const { return ca[w.cref].mark() == 1; }
+        };
+        OccLists<Lit, vec<Watcher>, WatcherDeleted>
+            watches; // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
     protected:
         // Helper structures:
         //
@@ -176,13 +334,6 @@ namespace Minisat
             VarData d = {cr, l};
             return d;
         }
-
-        struct WatcherDeleted
-        {
-            const ClauseAllocator &ca;
-            WatcherDeleted(const ClauseAllocator &_ca) : ca(_ca) {}
-            bool operator()(const Watcher &w) const { return ca[w.cref].mark() == 1; }
-        };
 
         struct VarOrderLt
         {
@@ -199,8 +350,7 @@ namespace Minisat
         double cla_inc;       // Amount to bump next clause with.
         vec<double> activity; // A heuristic measurement of the activity of a variable.
         double var_inc;       // Amount to bump next variable with.
-        OccLists<Lit, vec<Watcher>, WatcherDeleted>
-            watches;                 // 'watches[lit]' is a list of constraints watching 'lit' (will go there if literal becomes true).
+
         vec<lbool> assigns;          // The current assignments.
         vec<char> polarity;          // The preferred polarity of each variable.
         vec<char> decision;          // Declares if a variable is eligible for selection in the decision heuristic.
@@ -297,34 +447,8 @@ namespace Minisat
         {
             return (int)(drand(seed) * size);
         }
-        friend std::ofstream &Minisat::operator<<(std::ofstream &of, const Solver &solver);
-        friend std::ifstream &Minisat::operator>>(std::ifstream &in, Solver &solver);
     };
-    template <typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const Solver::Watcher &v)
-    {
-        of << v.blocker << v.cref;
-        return of;
-    }
-    template <typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, Solver::Watcher &v)
-    {
-        in >> v.blocker >> v.cref;
-        return in;
-    }
 
-    template <typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const Solver::VarData &v)
-    {
-        of << v.reason << v.level;
-        return of;
-    }
-    template <typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, Solver::VarData &v)
-    {
-        in >> v.reason >> v.level;
-        return in;
-    }
     //=================================================================================================
     // Implementation of inline methods:
 

@@ -57,6 +57,19 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 
 //=================================================================================================
 // Constructor/Destructor:
+// sjq options
+static BoolOption save(_cat, "save", "weather save the checkpoint", false);
+static BoolOption load(_cat, "load", "weather load the checkpoint", false);
+static Int64Option checkpoint_prop(_cat, "checkpoint-prop", "when to save checkpoint");
+static StringOption checkpoint_name(_cat, "checkpoint-name", "the name of checkpoint");
+static BoolOption enable_acc(_cat, "enable-acc", "weather enable simulation(for acc only)", false);
+
+static BoolOption enable_warmup(_cat, "enable-warmup", "weather enable the warmup(for acc only)", false);
+static BoolOption enable_end(_cat, "enable-end", "weather enable early end(for acc only)", false);
+static Int64Option warmup_prop(_cat, "warmup-prop", "props to warmup");
+static Int64Option end_prop(_cat, "end-prop", "props to end");
+
+// end sjq options
 
 Solver::Solver() :
 
@@ -80,7 +93,7 @@ Solver::Solver() :
                    solves(0), starts(0), decisions(0), rnd_decisions(0), propagations(0), conflicts(0), dec_vars(0), clauses_literals(0), learnts_literals(0), max_literals(0), tot_literals(0)
 
                    ,
-                   ok(true), cla_inc(1), var_inc(1), watches(WatcherDeleted(ca)), qhead(0), simpDB_assigns(-1), simpDB_props(0), order_heap(VarOrderLt(activity)), progress_estimate(0), remove_satisfied(true)
+                   watches(WatcherDeleted(ca)), ok(true), cla_inc(1), var_inc(1), qhead(0), simpDB_assigns(-1), simpDB_props(0), order_heap(VarOrderLt(activity)), progress_estimate(0), remove_satisfied(true)
 
                    // Resource constraints:
                    //
@@ -1081,74 +1094,6 @@ static double luby(double y, int x)
     }
 
     return pow(y, seq);
-}
-std::ofstream &Minisat::operator<<(std::ofstream &of, const Solver &solver)
-{
-    of << solver.model << solver.conflict << solver.verbosity
-       << solver.var_decay << solver.clause_decay << solver.random_var_freq << solver.random_seed
-       << solver.luby_restart << solver.ccmin_mode << solver.phase_saving << solver.rnd_pol
-       << solver.rnd_init_act << solver.garbage_frac << solver.restart_first << solver.restart_inc
-       << solver.learntsize_factor << solver.learntsize_inc << solver.learntsize_adjust_start_confl
-       << solver.learntsize_adjust_inc << solver.solves << solver.starts << solver.decisions << solver.rnd_decisions << solver.propagations << solver.conflicts
-       << solver.dec_vars << solver.clauses_literals << solver.learnts_literals << solver.max_literals << solver.tot_literals
-       << solver.ok
-       << solver.clauses
-       << solver.learnts
-       << solver.cla_inc
-       << solver.activity
-       << solver.var_inc
-       << solver.watches
-       << solver.assigns
-       << solver.polarity
-       << solver.decision
-       << solver.trail
-       << solver.trail_lim
-       << solver.vardata
-       << solver.qhead
-       << solver.simpDB_assigns
-       << solver.simpDB_props
-       << solver.assumptions
-       << solver.order_heap
-       << solver.progress_estimate
-       << solver.remove_satisfied
-       << solver.ca
-       << solver.seen
-       << solver.analyze_stack
-       << solver.analyze_toclear
-       << solver.add_tmp
-       << solver.max_learnts
-       << solver.learntsize_adjust_confl
-       << solver.learntsize_adjust_cnt
-       << solver.conflict_budget
-       << solver.propagation_budget
-       << solver.asynch_interrupt;
-    return of;
-}
-std::ifstream &Minisat::operator>>(std::ifstream &in, Solver &solver)
-{
-    in >> solver.model >> solver.conflict >> solver.verbosity >> solver.var_decay >>
-        solver.clause_decay >> solver.random_var_freq >>
-        solver.random_seed >> solver.luby_restart >>
-        solver.ccmin_mode >> solver.phase_saving >>
-        solver.rnd_pol >> solver.rnd_init_act >>
-        solver.garbage_frac >> solver.restart_first >>
-        solver.restart_inc >> solver.learntsize_factor >>
-        solver.learntsize_inc >> solver.learntsize_adjust_start_confl >>
-        solver.learntsize_adjust_inc >> solver.solves >>
-        solver.starts >> solver.decisions >> solver.rnd_decisions >>
-        solver.propagations >> solver.conflicts >> solver.dec_vars >>
-        solver.clauses_literals >> solver.learnts_literals >> solver.max_literals >>
-        solver.tot_literals >> solver.ok >> solver.clauses >> solver.learnts >>
-        solver.cla_inc >> solver.activity >> solver.var_inc >> solver.watches >>
-        solver.assigns >> solver.polarity >> solver.decision >> solver.trail >>
-        solver.trail_lim >> solver.vardata >> solver.qhead >> solver.simpDB_assigns >>
-        solver.simpDB_props >> solver.assumptions >> solver.order_heap >>
-        solver.progress_estimate >> solver.remove_satisfied >> solver.ca >>
-        solver.seen >> solver.analyze_stack >> solver.analyze_toclear >>
-        solver.add_tmp >> solver.max_learnts >> solver.learntsize_adjust_confl >>
-        solver.learntsize_adjust_cnt >> solver.conflict_budget >>
-        solver.propagation_budget >> solver.asynch_interrupt;
-    return in;
 }
 
 // NOTE: assumptions passed in member-variable 'assumptions'.

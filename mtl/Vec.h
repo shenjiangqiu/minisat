@@ -27,6 +27,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/IntTypes.h"
 #include "mtl/XAlloc.h"
 #include <fstream>
+#include <boost/serialization/serialization.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 namespace Minisat
 {
 
@@ -37,10 +40,6 @@ namespace Minisat
     template <class T>
     class vec
     {
-        template <typename TT, typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const vec<TT> &v);
-        template <typename TT, typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, vec<TT> &v);
 
         T *data;
         int sz;
@@ -64,8 +63,67 @@ namespace Minisat
         static inline void nextCap(int &cap) { cap += ((cap >> 1) + 2) & ~1; }
 
     public:
+        bool operator==(const vec &other)
+        {
+            if (size() == other.size())
+            {
+                for (int i = 0; i < size(); i++)
+                {
+                    if (data[i] == other.data[i])
+                    {
+                        //do nothing
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+            return true;
+        }
+        template <typename Archive>
+        void save(Archive &ar, const unsigned int version) const
+        {
+            ar &sz;
+            for (int i = 0; i < sz; i++)
+            {
+                ar &data[i];
+            }
+        }
+        template <typename Archive>
+        void load(Archive &ar, const unsigned int version)
+        {
+            ar &sz;
+            capacity(sz);
+            for (int i = 0; i < sz; i++)
+            {
+                ar &data[i];
+            }
+        }
+        BOOST_SERIALIZATION_SPLIT_MEMBER()
         // Constructors:
         vec() : data(NULL), sz(0), cap(0) {}
+        vec(vec &&other)
+        {
+            sz = other.sz;
+            cap = other.cap;
+            data = other.data;
+            other.data = nullptr;
+        }
+
+        vec &operator=(vec &&other) noexcept
+        {
+            sz = other.sz;
+            cap = other.cap;
+            data = other.data;
+            other.data = nullptr;
+            return *this;
+        }
+
         explicit vec(int size) : data(NULL), sz(0), cap(0) { growTo(size); }
         vec(int size, const T &pad) : data(NULL), sz(0), cap(0) { growTo(size, pad); }
         ~vec() { clear(true); }
@@ -101,6 +159,12 @@ namespace Minisat
             sz++;
         }
         void push(const T &elem)
+        {
+            if (sz == cap)
+                capacity(sz + 1);
+            data[sz++] = elem;
+        }
+        void push(T &&elem)
         {
             if (sz == cap)
                 capacity(sz + 1);
@@ -147,30 +211,7 @@ namespace Minisat
             cap = 0;
         }
     };
-    template <class TT, typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &out, const vec<TT> &v)
-    {
-        out << v.sz << v.cap;
-        for (int i = 0; i < v.sz; i++)
-        {
-            out << v.data[i];
-        }
-        return out;
-    }
 
-    template <typename T, typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, vec<T> &v)
-    {
-        int size, cap;
-        in >> size >> cap;
-        v.capacity(cap);
-        v.sz = size;
-        for (int i = 0; i < size; i++)
-        {
-            in >> v.data[i];
-        }
-        return in;
-    }
     template <class T>
     void vec<T>::capacity(int min_cap)
     {

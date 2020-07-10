@@ -33,12 +33,28 @@ namespace Minisat
     template <class T>
     class RegionAllocator
     {
-        template <typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const ClauseAllocator &v);
-        template <typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, ClauseAllocator &v);
-
     public:
+        bool operator==(const RegionAllocator &other)
+        {
+            if (sz == other.sz)
+            {
+                for (unsigned i = 0; i < sz; i++)
+                {
+                    if (memory[i] == other.memory[i])
+                    {
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+            return true;
+        }
         T *memory;
         uint32_t sz;
         uint32_t cap;
@@ -57,6 +73,26 @@ namespace Minisat
         {
             Unit_Size = sizeof(uint32_t)
         };
+        template <typename Archive>
+        void save(Archive &ar, const unsigned int version) const
+        {
+            ar &sz;
+            for (int i = 0; i < sz; i++)
+            {
+                ar &memory[i];
+            }
+        }
+        template <typename Archive>
+        void load(Archive &ar, const unsigned int version)
+        {
+            ar &sz;
+            capacity(sz);
+            for (int i = 0; i < sz; i++)
+            {
+                ar &memory[i];
+            }
+        }
+        BOOST_SERIALIZATION_SPLIT_MEMBER()
 
         explicit RegionAllocator(uint32_t start_cap = 1024 * 1024) : memory(NULL), sz(0), cap(0), wasted_(0) { capacity(start_cap); }
         ~RegionAllocator()

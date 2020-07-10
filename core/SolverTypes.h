@@ -43,6 +43,11 @@ namespace Minisat
 
     struct Lit
     {
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int version)
+        {
+            ar &x;
+        }
         template <typename ISTYPE>
         friend ISTYPE &operator>>(ISTYPE &in, Lit &lit);
         int x;
@@ -112,14 +117,15 @@ namespace Minisat
 
     class lbool
     {
-        template <typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const lbool &v);
-        template <typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, lbool &v);
 
         uint8_t value;
 
     public:
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int version)
+        {
+            ar &value;
+        }
         explicit lbool(uint8_t v) : value(v) {}
 
         lbool() : value(0) {}
@@ -147,19 +153,6 @@ namespace Minisat
         friend lbool toLbool(int v);
     };
 
-    template <typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const lbool &v)
-    {
-        of << v.value;
-        return of;
-    }
-    template <typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, lbool &v)
-    {
-        in >> v.value;
-        return in;
-    }
-
     inline int toInt(lbool l) { return l.value; }
     inline lbool toLbool(int v) { return lbool((uint8_t)v); }
 
@@ -180,8 +173,7 @@ namespace Minisat
             unsigned reloced : 1;
             unsigned size : 27;
         } header;
-        union
-        {
+        union {
             Lit lit;
             float act;
             uint32_t abs;
@@ -249,7 +241,7 @@ namespace Minisat
         //       subsumption operations to behave correctly.
         Lit &operator[](int i) { return data[i].lit; }
         Lit operator[](int i) const { return data[i].lit; }
-        operator const Lit *(void) const { return (Lit *)data; }
+        operator const Lit *(void)const { return (Lit *)data; }
 
         float &activity()
         {
@@ -272,10 +264,6 @@ namespace Minisat
     const CRef CRef_Undef = RegionAllocator<uint32_t>::Ref_Undef;
     class ClauseAllocator : public RegionAllocator<uint32_t>
     {
-        template <typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const ClauseAllocator &v);
-        template <typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, ClauseAllocator &v);
 
         static int clauseWord32Size(int size, bool has_extra)
         {
@@ -283,6 +271,24 @@ namespace Minisat
         }
 
     public:
+        bool operator==(const ClauseAllocator &other)
+        {
+            if (extra_clause_field == other.extra_clause_field and RegionAllocator<uint32_t>::operator==(other))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int version)
+        {
+            ar &boost::serialization::base_object<RegionAllocator<uint32_t>>(*this);
+            ar &extra_clause_field;
+        }
+
         bool extra_clause_field;
 
         explicit ClauseAllocator(uint32_t start_cap) : RegionAllocator<uint32_t>(start_cap), extra_clause_field(false) {}
@@ -346,36 +352,32 @@ namespace Minisat
         }
     };
 
-    template <typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const ClauseAllocator &v)
-    {
-        of << v.extra_clause_field << v.sz << v.cap << v.wasted_;
-        for (unsigned i = 0; i < v.sz; i++)
-        {
-            of << v.memory[i];
-        }
-        return of;
-    }
-    template <typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, ClauseAllocator &v)
-    {
-        unsigned sz, cap, waste;
-        in >> v.extra_clause_field >> sz >> cap >> waste;
-        v.sz = 0;
-        v.alloc(sz); //this will set both size and capacity
-        v.wasted_ = waste;
-        for (unsigned i = 0; i < sz; i++)
-        {
-            in >> v.memory[i];
-        }
-        return in;
-    }
     //=================================================================================================
     // OccLists -- a class for maintaining occurence lists with lazy deletion:
 
     template <class Idx, class Vec, class Deleted>
     class OccLists
     {
+    public:
+        bool operator==(const OccLists &other)
+        {
+            if (occs.size() == other.occs.size() && dirty.size() == other.dirty.size() and dirties.size() == other.dirties.size())
+            {
+                //continue
+                if (occs == other.occs and dirty == other.dirty and dirties == other.dirties)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
         template <typename II, typename VV, typename DD, typename OSTYPE>
         friend OSTYPE &operator<<(OSTYPE &of, const OccLists<II, VV, DD> &v);
         template <typename II, typename VV, typename DD, typename ISTYPE>
@@ -386,6 +388,14 @@ namespace Minisat
         Deleted deleted;
 
     public:
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int file_version)
+        {
+            ar &occs;
+            ar &dirty;
+            ar &dirties;
+        }
+
         OccLists(const Deleted &d) : deleted(d) {}
 
         void init(const Idx &idx)

@@ -32,10 +32,6 @@ namespace Minisat
     template <class Comp>
     class Heap
     {
-        template <typename TT, typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const Heap<TT> &v);
-        template <typename TT, typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in,  Heap<TT> &v);
 
         Comp lt;          // The heap is a minimum-heap with respect to this comparator
         vec<int> heap;    // Heap of integers
@@ -79,6 +75,23 @@ namespace Minisat
         }
 
     public:
+        bool operator==(const Heap &other)
+        {
+            if (heap == other.heap and indices == other.indices)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        template <class Archive>
+        void serialize(Archive &ar, const unsigned int version)
+        {
+            ar &heap;
+            ar &indices;
+        }
         Heap(const Comp &c) : lt(c) {}
 
         int size() const { return heap.size(); }
@@ -160,18 +173,6 @@ namespace Minisat
         }
     };
 
-    template <typename TT, typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const Heap<TT> &v)
-    {
-        of << v.heap << v.indices;
-        return of;
-    }
-    template <typename TT, typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in,  Heap<TT> &v)
-    {
-        in >> v.heap >> v.indices;
-        return in;
-    }
     //=================================================================================================
 } // namespace Minisat
 
