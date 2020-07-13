@@ -7,6 +7,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 #include <vector>
 #include <iostream>
+#include "core/Dimacs.h"
 using namespace Minisat;
 
 TEST_CASE("solver test", "[base]")
@@ -31,5 +32,22 @@ TEST_CASE("solver test", "[base]")
     }
     SECTION("real test")
     {
+        gzFile in = gzopen("/home/sjq/cnfs/cnfs/ASG_96_len112_known_last12_2.cnf", "rb");
+        //std::ofstream ifs("/home/sjq/cnfs/cnfs/ASG_96_len112_known_last12_2.cnf");
+        Solver s;
+        parse_DIMACS(in, s);
+
+        {
+            std::ofstream ofs("real.bin");
+            boost::archive::binary_oarchive oa(ofs);
+            oa << s;
+        }
+        Solver s_empty;
+        {
+            std::ifstream ifs("real.bin");
+            boost::archive::binary_iarchive ia(ifs);
+            ia >> s_empty;
+        }
+        REQUIRE((s == s_empty) == true);
     }
 }

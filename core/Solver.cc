@@ -32,12 +32,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <fstream>
 #include <map>
 using namespace Minisat;
-#ifndef SJQ_WARMUP
-#error "should define SJQ_WARMUP"
-#endif
-#ifndef SJQ_TOTAL_PROP
-#error "should define SJQ_TOTAL_PROP"
-#endif
+
 //=================================================================================================
 // Options:
 
@@ -58,17 +53,17 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 //=================================================================================================
 // Constructor/Destructor:
 // sjq options
-static BoolOption save(_cat, "save", "weather save the checkpoint", false);
-static BoolOption load(_cat, "load", "weather load the checkpoint", false);
-static Int64Option checkpoint_prop(_cat, "checkpoint-prop", "when to save checkpoint");
-static StringOption checkpoint_name(_cat, "checkpoint-name", "the name of checkpoint");
-static BoolOption enable_acc(_cat, "enable-acc", "weather enable simulation(for acc only)", false);
 
-static BoolOption enable_warmup(_cat, "enable-warmup", "weather enable the warmup(for acc only)", false);
-static BoolOption enable_end(_cat, "enable-end", "weather enable early end(for acc only)", false);
-static Int64Option warmup_prop(_cat, "warmup-prop", "props to warmup");
-static Int64Option end_prop(_cat, "end-prop", "props to end");
+static BoolOption opt_enable_acc("sjq", "enable-acc", "weather enable simulation(for acc only)", false);
 
+static BoolOption opt_enable_warmup("sjq", "enable-warmup", "weather enable the warmup(for acc only)", false);
+static BoolOption opt_enable_end("sjq", "enable-end", "weather enable early end(for acc only)", false);
+static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup");
+static Int64Option opt_end_prop("sjq", "end-prop", "props to end");
+BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
+BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
+Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
+StringOption opt_checkpoint_name("sjq", "checkpoint-name", "the name of checkpoint");
 // end sjq options
 
 Solver::Solver() :
@@ -100,6 +95,7 @@ Solver::Solver() :
                    ,
                    conflict_budget(-1), propagation_budget(-1), asynch_interrupt(false)
 {
+    finished_warmup = opt_enable_warmup ? false : true;
 }
 
 Solver::~Solver()
@@ -494,7 +490,6 @@ using MACC::ACC;
 using MACC::create_acc;
 std::vector<ACC *> m_acc;
 std::vector<unsigned long long> total_cycle;
-unsigned long long total_prop = 0;
 
 std::vector<ACC *> &get_acc()
 {
@@ -530,9 +525,6 @@ std::vector<ACC *> &get_acc()
     return m_acc;
 }
 
-int warmup_times = 0;
-int start_warmup = 0;
-bool real_started = false;
 assign_wrap_factory awf;
 int start_size = 0;
 int end_size = 0;
@@ -549,7 +541,7 @@ CRef Solver::propagate()
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    if (real_started)
+    if (finished_warmup and opt_enable_acc)
     {
         for (auto &&mc : get_acc())
         {
@@ -574,7 +566,7 @@ CRef Solver::propagate()
         num_props++;
 
         assign_wrap *this_wrap = nullptr;
-        if (real_started)
+        if (finished_warmup and opt_enable_acc)
         {
             bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
 
@@ -614,7 +606,7 @@ CRef Solver::propagate()
             CRef cr = i->cref;
             Clause &c = ca[cr];
             assert(&c == ca.lea(cr));
-            if (real_started)
+            if (finished_warmup and opt_enable_acc)
                 this_wrap->add_modified_list(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
             //clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
@@ -626,12 +618,12 @@ CRef Solver::propagate()
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
-            if (real_started)
+            if (finished_warmup and opt_enable_acc)
             {
                 //this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
                 //this_wrap->add_clause_literal(ii - 1, first);
             }
-            if (real_started)
+            if (finished_warmup and opt_enable_acc)
             {
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
@@ -648,7 +640,7 @@ CRef Solver::propagate()
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
-                if (real_started)
+                if (finished_warmup and opt_enable_acc)
                 {
                     this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
                     this_wrap->add_clause_literal(ii - 1, c[k]);
@@ -659,7 +651,7 @@ CRef Solver::propagate()
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
-                    if (real_started)
+                    if (finished_warmup and opt_enable_acc)
                         this_wrap->add_pushed_list(ii - 1, int(~c[1]));
                     goto NextClause;
                 }
@@ -668,7 +660,7 @@ CRef Solver::propagate()
             *j++ = w;
             if (value(first) == l_False)
             {
-                if (real_started)
+                if (finished_warmup and opt_enable_acc)
                     this_wrap->set_generated_conf(ii - 1);
                 //get_acc()->set_ready();
                 confl = cr;
@@ -681,7 +673,7 @@ CRef Solver::propagate()
             {
                 //first generate new wrap;
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
-                if (real_started)
+                if (finished_warmup and opt_enable_acc)
                 {
                     auto new_wrap = awf.create(first, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
 
@@ -702,7 +694,7 @@ CRef Solver::propagate()
     //get_acc()->print_on(1);
     std::vector<int> this_cycle;
 
-    if (real_started)
+    if (finished_warmup and opt_enable_acc)
     {
         //std::cout<<"start!"<<total_prop<<std::endl;
         for (auto &&mc : get_acc())
@@ -712,6 +704,7 @@ CRef Solver::propagate()
             this_cycle.push_back(mc->start_sim());
             //std::cout<<"finishedACC"<<std::endl;
         }
+        /*
         if (std::all_of(get_acc().begin(), get_acc().end(), [](auto acc) {
                 return acc->get_total_read_old_times() == get_acc()[0]->get_total_read_old_times() &&
                        acc->get_total_write_same_times() == get_acc()[0]->get_total_write_same_times() &&
@@ -735,6 +728,7 @@ CRef Solver::propagate()
             });
             exit(1);
         }
+        */
         for (auto value : lit_to_wrap)
         {
             delete value.second;
@@ -743,8 +737,6 @@ CRef Solver::propagate()
         {
             total_cycle[i] += this_cycle[i];
         }
-
-        total_prop++;
 
         if (total_prop % 10000 == 1)
         {
@@ -764,7 +756,7 @@ CRef Solver::propagate()
             }
         }
         //if (total_prop >= 3000000)
-        if (total_prop >= SJQ_TOTAL_PROP)
+        if (opt_enable_end and total_prop >= (unsigned long long)opt_end_prop)
         {
 
             end_size = ca.size();
@@ -776,61 +768,25 @@ CRef Solver::propagate()
             //handle exit logic,
         }
     }
-    if (started && !real_started)
+    if (opt_enable_warmup and finished_init and not finished_warmup)
     {
         //std::cout<<"start warm up:"<<warmup_times<<std::endl;
-        if (warmup_times == 0)
+        if (total_warmup == 0)
         {
             start_size = ca.size();
         }
-        warmup_times++;
-        if (warmup_times >= SJQ_WARMUP)
+        total_warmup++;
+        //std::cout << "warmup:" << total_warmup << std::endl;
+        if (total_warmup >= (unsigned long long)opt_warmup_prop)
         //if (warmup_times >= 100)
         {
-            real_started = true;
+            finished_warmup = true;
         }
     }
-    if (real_started)
-    {
-        /*
-        std::for_each(m_acc.begin(), m_acc.end(), [&](ACC *t_acc) {
-            if (t_acc->get_watcher_map() == watcher_access)
-            {
-                //std::cout << "equal watcher!" << std::endl;
-            }
-            else
-            {
-                std::cout << "watcher not equal!" << std::endl;
-                std::cout << t_acc->get_watcher_map().size() << ", " << watcher_access.size() << std::endl;
-            }
-            if (t_acc->get_clause_map() == clause_access)
-            {
-                //std::cout << "equal clause!" << std::endl;
-            }
-            else
-            {
-                std::cout << "clause not equal!" << std::endl;
+    if (finished_init)
+        total_prop++;
+    //std::cout << "total_prop:" << total_prop << std::endl;
 
-                std::ofstream out("c_real.txt");
-                std::cout << t_acc->get_clause_map().size() << ", " << clause_access.size() << std::endl;
-                for (auto elem : clause_access)
-                {
-                    out << elem.first << " " << elem.second << std::endl;
-                }
-                out.close();
-                std::ofstream out2("c_acc.txt");
-                for (auto elem : t_acc->get_clause_map())
-                {
-                    out2 << elem.first << " " << elem.second << std::endl;
-                }
-            }
-            //std::cout << "end this acc" << std::endl;
-            //exit(0);
-        });
-        //std::cout << "\nend the prop\n"
-        //          << std::endl;
-        */
-    }
     return confl;
 }
 
@@ -941,38 +897,60 @@ bool Solver::simplify()
 lbool Solver::search(int nof_conflicts)
 {
     assert(ok);
-    int backtrack_level;
-    int conflictC = 0;
-    vec<Lit> learnt_clause;
-    starts++;
+    static bool first_in = true;
+    if (!opt_load)
+    {
+        first_in = false;
+    }
+    if (!first_in)
+    {
+        curr_backtrack_level = 0;
+        curr_conflictC = 0;
+        curr_learnt_clause.clear();
 
+        starts++;
+    }
     for (;;)
     {
+        if (opt_save)
+        {
+            if (total_prop >= (unsigned long long)opt_checkpoint_prop)
+            {
+                { //save to file now;
+                    std::ofstream ofs(opt_checkpoint_name);
+                    boost::archive::binary_oarchive oa(ofs);
+                    oa &(*this);
+                    std::cout << "save the checkpoint to file " << opt_checkpoint_name << std::endl;
+                }
+                exit(0);
+            }
+        }
+        first_in = false;
         CRef confl = propagate();
 
         if (confl != CRef_Undef)
         {
             // CONFLICT
             conflicts++;
-            conflictC++;
+            curr_conflictC++;
             if (decisionLevel() == 0)
                 return l_False;
 
-            learnt_clause.clear();
-            analyze(confl, learnt_clause, backtrack_level);
-            cancelUntil(backtrack_level);
+            curr_learnt_clause.clear();
+            analyze(confl, curr_learnt_clause, curr_backtrack_level);
+            cancelUntil(curr_backtrack_level);
 
-            if (learnt_clause.size() == 1)
+            if (curr_learnt_clause.size() == 1)
             {
-                uncheckedEnqueue(learnt_clause[0]);
+                uncheckedEnqueue(curr_learnt_clause[0]);
             }
             else
             {
-                CRef cr = ca.alloc(learnt_clause, true);
+                CRef cr = ca.alloc(curr_learnt_clause, true);
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
-                uncheckedEnqueue(learnt_clause[0], cr);
+                uncheckedEnqueue(curr_learnt_clause[0], cr);
             }
 
             varDecayActivity();
@@ -994,7 +972,7 @@ lbool Solver::search(int nof_conflicts)
         else
         {
             // NO CONFLICT
-            if (nof_conflicts >= 0 && conflictC >= nof_conflicts || !withinBudget())
+            if (nof_conflicts >= 0 && curr_conflictC >= nof_conflicts || !withinBudget())
             {
                 // Reached bound on number of conflicts:
                 progress_estimate = progressEstimate();
@@ -1099,18 +1077,25 @@ static double luby(double y, int x)
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
-    model.clear();
-    conflict.clear();
-    if (!ok)
-        return l_False;
+    static bool first_in = true;
+    if (!opt_load)
+    {
+        first_in = false;
+    }
+    if (!first_in)
+    {
+        model.clear();
+        conflict.clear();
+        if (!ok)
+            return l_False;
 
-    solves++;
+        solves++;
 
-    max_learnts = nClauses() * learntsize_factor;
-    learntsize_adjust_confl = learntsize_adjust_start_confl;
-    learntsize_adjust_cnt = (int)learntsize_adjust_confl;
-    lbool status = l_Undef;
-
+        max_learnts = nClauses() * learntsize_factor;
+        learntsize_adjust_confl = learntsize_adjust_start_confl;
+        learntsize_adjust_cnt = (int)learntsize_adjust_confl;
+        curr_stats = l_Undef;
+    }
     if (verbosity >= 1)
     {
         printf("============================[ Search Statistics ]==============================\n");
@@ -1120,11 +1105,16 @@ lbool Solver::solve_()
     }
 
     // Search:
-    int curr_restarts = 0;
-    while (status == l_Undef)
+    if (!first_in)
+        curr_restarts = 0;
+    while (curr_stats == l_Undef)
     {
-        double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
-        status = search(rest_base * restart_first);
+        if (!first_in)
+        {
+            curr_rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
+        }
+        first_in = false;
+        curr_stats = search(curr_rest_base * restart_first);
         if (!withinBudget())
             break;
         curr_restarts++;
@@ -1133,18 +1123,18 @@ lbool Solver::solve_()
     if (verbosity >= 1)
         printf("===============================================================================\n");
 
-    if (status == l_True)
+    if (curr_stats == l_True)
     {
         // Extend & copy model:
         model.growTo(nVars());
         for (int i = 0; i < nVars(); i++)
             model[i] = value(i);
     }
-    else if (status == l_False && conflict.size() == 0)
+    else if (curr_stats == l_False && conflict.size() == 0)
         ok = false;
 
     cancelUntil(0);
-    return status;
+    return curr_stats;
 }
 
 //=================================================================================================

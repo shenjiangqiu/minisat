@@ -17,7 +17,7 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
-#include<argparse/argparse.hpp>
+#include <argparse/argparse.hpp>
 #include <errno.h>
 
 #include <signal.h>
@@ -32,7 +32,9 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 using namespace Minisat;
 
 //=================================================================================================
-
+extern BoolOption opt_load;
+extern Int64Option opt_checkpoint_prop;
+extern StringOption opt_checkpoint_name;
 void printStats(Solver &solver)
 {
     double cpu_time = cpuTime();
@@ -94,7 +96,14 @@ int main(int argc, char **argv)
 
         parseOptions(argc, argv, true);
 
-        Solver S;
+        Solver S; //will read the
+        if (opt_load)
+        {
+            //load the S instead of parse the file
+            std::ifstream ifs(opt_checkpoint_name);
+            boost::archive::binary_iarchive ia(ifs);
+            ia &S;
+        }
         double initial_time = cpuTime();
 
         S.verbosity = verb;
@@ -131,22 +140,25 @@ int main(int argc, char **argv)
                     printf("WARNING! Could not set resource limit: Virtual memory.\n");
             }
         }
-
-        if (argc == 1)
-            printf("Reading from standard input... Use '--help' for help.\n");
-
-        gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
-        if (in == NULL)
-            printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
-
-        if (S.verbosity > 0)
+        if (!opt_load)
         {
-            printf("============================[ Problem Statistics ]=============================\n");
-            printf("|                                                                             |\n");
-        }
+            if (argc == 1)
+                printf("Reading from standard input... Use '--help' for help.\n");
 
-        parse_DIMACS(in, S);
-        gzclose(in);
+            gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
+            if (in == NULL)
+                printf("ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
+
+            if (S.verbosity > 0)
+            {
+                printf("============================[ Problem Statistics ]=============================\n");
+                printf("|                                                                             |\n");
+            }
+
+            parse_DIMACS(in, S);
+
+            gzclose(in);
+        }
         FILE *res = (argc >= 3) ? fopen(argv[2], "wb") : NULL;
 
         if (S.verbosity > 0)
@@ -166,24 +178,27 @@ int main(int argc, char **argv)
         // voluntarily:
         signal(SIGINT, SIGINT_exit);
         signal(SIGXCPU, SIGINT_exit);
-
-        if (!S.simplify())
+        if (!opt_load)
         {
-            if (res != NULL)
-                fprintf(res, "UNSAT\n"), fclose(res);
-            if (S.verbosity > 0)
+            if (!S.simplify())
             {
-                printf("===============================================================================\n");
-                printf("Solved by unit propagation\n");
-                printStats(S);
-                printf("\n");
+                if (res != NULL)
+                    fprintf(res, "UNSAT\n"), fclose(res);
+                if (S.verbosity > 0)
+                {
+                    printf("===============================================================================\n");
+                    printf("Solved by unit propagation\n");
+                    printStats(S);
+                    printf("\n");
+                }
+                printf("UNSATISFIABLE\n");
+                exit(20);
             }
-            printf("UNSATISFIABLE\n");
-            exit(20);
-        }
 
+            S.started = true;
+            S.finished_init = true;
+        }
         vec<Lit> dummy;
-        S.started = true;
         lbool ret = S.solveLimited(dummy);
         if (S.verbosity > 0)
         {

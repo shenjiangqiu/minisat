@@ -77,7 +77,7 @@ namespace Minisat
         void save(Archive &ar, const unsigned int version) const
         {
             ar &sz;
-            for (int i = 0; i < sz; i++)
+            for (unsigned i = 0; i < sz; i++)
             {
                 ar &memory[i];
             }
@@ -87,7 +87,7 @@ namespace Minisat
         {
             ar &sz;
             capacity(sz);
-            for (int i = 0; i < sz; i++)
+            for (unsigned i = 0; i < sz; i++)
             {
                 ar &memory[i];
             }

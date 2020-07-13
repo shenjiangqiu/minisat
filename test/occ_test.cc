@@ -16,5 +16,5 @@ TEST_CASE("occ test", "[basic]")
     Solver s;
     ClauseAllocator ca;
     OccLists<int,vec<vec<int>>,deleted> m_watcher_list(deleted(ca));
-
+    
 }

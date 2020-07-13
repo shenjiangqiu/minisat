@@ -39,9 +39,25 @@ namespace Minisat
     {
 
     public:
+        int curr_restarts = 0; // function stack
+        lbool curr_stats = l_Undef;
+        double curr_rest_base;
+        int curr_backtrack_level;
+        int curr_conflictC = 0;
+        vec<Lit> curr_learnt_clause;
+
+        unsigned long long total_prop = 0;
+        unsigned long long total_warmup = 0;
+        bool finished_init = false;
+        bool finished_warmup = false;
+
         bool operator==(const Solver &other)
         {
-            if (started == other.started and
+            if (total_prop == other.total_prop and
+                total_warmup == other.total_warmup and
+                finished_init == other.finished_init and
+                finished_warmup == other.finished_warmup and
+                started == other.started and
                 model == other.model and
                 conflict == other.conflict and
                 verbosity == other.verbosity and
@@ -114,6 +130,18 @@ namespace Minisat
         template <class Archive>
         void serialize(Archive &ar, const unsigned int version)
         {
+            //stack infomation
+            ar &curr_restarts;
+            ar &curr_stats;
+            ar &curr_rest_base;
+            ar &curr_backtrack_level;
+            ar &curr_conflictC;
+            ar &curr_learnt_clause;
+
+            ar &total_prop;
+            ar &total_warmup;
+            ar &finished_init;
+            ar &finished_warmup;
             ar &started;
             ar &model;
             ar &conflict;

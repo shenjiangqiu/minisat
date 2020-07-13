@@ -48,8 +48,7 @@ namespace Minisat
         {
             ar &x;
         }
-        template <typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, Lit &lit);
+
         int x;
         operator int() const { return x; }
         // Use this as a constructor:
@@ -59,12 +58,6 @@ namespace Minisat
         bool operator!=(Lit p) const { return x != p.x; }
         bool operator<(Lit p) const { return x < p.x; } // '<' makes p, ~p adjacent in the ordering.
     };
-    template <typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, Lit &lit)
-    {
-        in >> lit.x;
-        return in;
-    }
 
     inline Lit mkLit(Var var, bool sign = false)
     {
@@ -378,10 +371,7 @@ namespace Minisat
                 return false;
             }
         }
-        template <typename II, typename VV, typename DD, typename OSTYPE>
-        friend OSTYPE &operator<<(OSTYPE &of, const OccLists<II, VV, DD> &v);
-        template <typename II, typename VV, typename DD, typename ISTYPE>
-        friend ISTYPE &operator>>(ISTYPE &in, OccLists<II, VV, DD> &v);
+        
         vec<Vec> occs;
         vec<char> dirty;
         vec<Idx> dirties;
@@ -430,18 +420,7 @@ namespace Minisat
             dirties.clear(free);
         }
     };
-    template <typename II, typename VV, typename DD, typename OSTYPE>
-    OSTYPE &operator<<(OSTYPE &of, const OccLists<II, VV, DD> &v)
-    {
-        of << v.occs << v.dirty << v.dirties;
-        return of;
-    }
-    template <typename II, typename VV, typename DD, typename ISTYPE>
-    ISTYPE &operator>>(ISTYPE &in, OccLists<II, VV, DD> &v)
-    {
-        in >> v.occs >> v.dirty >> v.dirties;
-        return in;
-    }
+   
     template <class Idx, class Vec, class Deleted>
     void OccLists<Idx, Vec, Deleted>::cleanAll()
     {

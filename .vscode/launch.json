@@ -5,11 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(gdb) test load",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/core/minisat_debug",
+            "args": ["~/cnfs/cnfs/ASG_96_len112_known_last12_2.cnf", "-load",  "-end-prop=20000", "-checkpoint-prop=10000", "-checkpoint-name='test2.bin'"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/core",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(gdb) test",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/test/test",
-            "args": [],
+            "args": ["-e"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
