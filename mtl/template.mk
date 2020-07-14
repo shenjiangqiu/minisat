@@ -19,13 +19,13 @@ RCOBJS     = $(addsuffix r,  $(COBJS))
 
 
 CXX       ?= g++
-CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC 
-LFLAGS    ?= -Wall
+CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC -I$(HOME)/usr/include
+LFLAGS    ?= -Wall 
 
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-LFLAGS    += -lz -lsjqcache -lboost_serialization
+LFLAGS    += -lz -L$(HOME)/usr/lib -lsjqcache -lboost_serialization 
 
 .PHONY : s p d r rs clean 
 
