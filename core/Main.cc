@@ -99,10 +99,13 @@ int main(int argc, char **argv)
         Solver S; //will read the
         if (opt_load)
         {
-            //load the S instead of parse the file
-            std::ifstream ifs(opt_checkpoint_name);
-            boost::archive::binary_iarchive ia(ifs);
-            ia &S;
+            {
+                //load the S instead of parse the file
+                std::ifstream ifs(opt_checkpoint_name);
+                boost::archive::binary_iarchive ia(ifs);
+                ia &S;
+            }
+            std::cout << "loaded the checkpoint, start point: " << S.total_prop << std::endl;
         }
         double initial_time = cpuTime();
 

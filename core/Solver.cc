@@ -56,10 +56,8 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 
 static BoolOption opt_enable_acc("sjq", "enable-acc", "weather enable simulation(for acc only)", false);
 
-static BoolOption opt_enable_warmup("sjq", "enable-warmup", "weather enable the warmup(for acc only)", false);
-static BoolOption opt_enable_end("sjq", "enable-end", "weather enable early end(for acc only)", false);
-static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup");
-static Int64Option opt_end_prop("sjq", "end-prop", "props to end");
+static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup", 0);
+static Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
 BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
 BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
 Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
@@ -95,7 +93,7 @@ Solver::Solver() :
                    ,
                    conflict_budget(-1), propagation_budget(-1), asynch_interrupt(false)
 {
-    finished_warmup = opt_enable_warmup ? false : true;
+    finished_warmup = opt_warmup_prop > 0 ? false : true;
 }
 
 Solver::~Solver()
@@ -526,8 +524,7 @@ std::vector<ACC *> &get_acc()
 }
 
 assign_wrap_factory awf;
-int start_size = 0;
-int end_size = 0;
+
 CRef Solver::propagate()
 {
     //std::ofstream real("real.txt", std::ios_base::app);
@@ -704,31 +701,7 @@ CRef Solver::propagate()
             this_cycle.push_back(mc->start_sim());
             //std::cout<<"finishedACC"<<std::endl;
         }
-        /*
-        if (std::all_of(get_acc().begin(), get_acc().end(), [](auto acc) {
-                return acc->get_total_read_old_times() == get_acc()[0]->get_total_read_old_times() &&
-                       acc->get_total_write_same_times() == get_acc()[0]->get_total_write_same_times() &&
-                       acc->get_total_write_conflict_times() == get_acc()[0]->get_total_write_conflict_times() &&
-                       acc->get_total_reads() == get_acc()[0]->get_total_reads() &&
-                       acc->get_total_writes() == get_acc()[0]->get_total_writes();
-            }))
-        {
-            //std::cout << "match the read and writes" << std::endl;
-        }
-        else
-        {
-            std::cout << "not match" << std::endl;
-            std::for_each(get_acc().begin(), get_acc().end(), [](auto acc) {
-                std::cout << "get_total_read_old_times " << acc->get_total_read_old_times() << std::endl;
-                std::cout << "get_total_write_same_times " << acc->get_total_write_same_times() << std::endl;
-                std::cout << "get_total_write_conflict_times " << acc->get_total_write_conflict_times() << std::endl;
-                std::cout << "get_total_reads " << acc->get_total_reads() << std::endl;
-                std::cout << "get_total_writes " << acc->get_total_writes() << std::endl;
-                std::cout << "\n\n";
-            });
-            exit(1);
-        }
-        */
+
         for (auto value : lit_to_wrap)
         {
             delete value.second;
@@ -756,35 +729,8 @@ CRef Solver::propagate()
             }
         }
         //if (total_prop >= 3000000)
-        if (opt_enable_end and total_prop >= (unsigned long long)opt_end_prop)
-        {
+    }
 
-            end_size = ca.size();
-            std::cout << "total_clause_size: " << end_size << std::endl;
-            std::cout << "origin_clause_size: " << start_size << std::endl;
-            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-            exit(0);
-            //handle exit logic,
-        }
-    }
-    if (opt_enable_warmup and finished_init and not finished_warmup)
-    {
-        //std::cout<<"start warm up:"<<warmup_times<<std::endl;
-        if (total_warmup == 0)
-        {
-            start_size = ca.size();
-        }
-        total_warmup++;
-        //std::cout << "warmup:" << total_warmup << std::endl;
-        if (total_warmup >= (unsigned long long)opt_warmup_prop)
-        //if (warmup_times >= 100)
-        {
-            finished_warmup = true;
-        }
-    }
-    if (finished_init)
-        total_prop++;
     //std::cout << "total_prop:" << total_prop << std::endl;
 
     return confl;
@@ -925,8 +871,40 @@ lbool Solver::search(int nof_conflicts)
                 exit(0);
             }
         }
+
+        if (opt_end_prop > 0 and total_prop >= (unsigned long long)opt_end_prop)
+        {
+
+            end_size = ca.size();
+            std::cout << "total_clause_size: " << end_size << std::endl;
+            std::cout << "origin_clause_size: " << start_size << std::endl;
+            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            std::cout << "current_prop " << total_prop << std::endl;
+            exit(0);
+            //handle exit logic,
+        }
+
         first_in = false;
         CRef confl = propagate();
+        
+        if (opt_warmup_prop > 0 and finished_init and not finished_warmup)
+        {
+            //std::cout<<"start warm up:"<<warmup_times<<std::endl;
+            if (total_warmup == 0)
+            {
+                start_size = ca.size();
+            }
+            total_warmup++;
+            //std::cout << "warmup:" << total_warmup << std::endl;
+            if (total_warmup >= (unsigned long long)opt_warmup_prop)
+            //if (warmup_times >= 100)
+            {
+                finished_warmup = true;
+            }
+        }
+        if (finished_init)
+            total_prop++;
 
         if (confl != CRef_Undef)
         {

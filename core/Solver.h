@@ -50,7 +50,8 @@ namespace Minisat
         unsigned long long total_warmup = 0;
         bool finished_init = false;
         bool finished_warmup = false;
-
+        int start_size = 0;
+        int end_size = 0;
         bool operator==(const Solver &other)
         {
             if (total_prop == other.total_prop and
@@ -130,6 +131,7 @@ namespace Minisat
         template <class Archive>
         void serialize(Archive &ar, const unsigned int version)
         {
+
             //stack infomation
             ar &curr_restarts;
             ar &curr_stats;
@@ -138,6 +140,8 @@ namespace Minisat
             ar &curr_conflictC;
             ar &curr_learnt_clause;
 
+            ar &start_size;
+            ar &end_size;
             ar &total_prop;
             ar &total_warmup;
             ar &finished_init;
