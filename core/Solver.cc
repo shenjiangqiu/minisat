@@ -32,7 +32,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <fstream>
 #include <map>
 using namespace Minisat;
-
+#include "core/cache_wrap.h"
 //=================================================================================================
 // Options:
 
@@ -62,6 +62,8 @@ BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
 BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
 Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
 StringOption opt_checkpoint_name("sjq", "checkpoint-name", "the name of checkpoint");
+BoolOption opt_seq("sjq", "seq", "weather get sequential time", false);
+
 // end sjq options
 
 Solver::Solver() :
@@ -525,6 +527,36 @@ std::vector<ACC *> &get_acc()
 
 assign_wrap_factory awf;
 
+CacheWrap m_cache_wrap;
+
+unsigned long long total_cycle_in_bcp_sq = 0;
+
+void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *addr, int type)
+{
+    auto result = cache.access((unsigned long long)addr, type);
+    if (result.first == CacheWrap::hit)
+    {
+
+        switch (result.second)
+        {
+        case CacheWrap::L1:
+            to_be_accumulated += 1;
+            break;
+        case CacheWrap::L2:
+            to_be_accumulated += 10;
+            break;
+        case CacheWrap::L3:
+            to_be_accumulated += 60;
+            break;
+        }
+    }
+    else
+    {
+
+        assert(result.first == CacheWrap::miss);
+        to_be_accumulated += 119;
+    }
+}
 CRef Solver::propagate()
 {
     //std::ofstream real("real.txt", std::ios_base::app);
@@ -532,6 +564,11 @@ CRef Solver::propagate()
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
     //std::map<int, int> generate_relation_map;
+    if (opt_seq and finished_warmup and total_prop % 10000 == 1)
+    {
+        std::cout << "total_prop " << total_prop << std::endl;
+        std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
+    }
 
     std::map<int, assign_wrap *> lit_to_wrap;
 
@@ -592,8 +629,19 @@ CRef Solver::propagate()
             ii++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
+            if (opt_seq and finished_warmup)
+            {
+                //simulate watcher read
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, 0);
+                //simulate value read
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], 0);
+            }
             if (value(blocker) == l_True)
             {
+                if (opt_seq and finished_warmup)
+                {
+                    total_cycle_in_bcp_sq += 2;
+                }
                 *j++ = *i++;
                 continue;
             }
@@ -611,10 +659,17 @@ CRef Solver::propagate()
                 c[0] = c[1], c[1] = false_lit;
             assert(c[1] == false_lit);
             i++;
-
+            if (opt_seq and finished_warmup)
+            {
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], 1);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], 1);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1], 1);
+            }
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
+            if (opt_seq and finished_warmup)
+                total_cycle_in_bcp_sq += 2;
             if (finished_warmup and opt_enable_acc)
             {
                 //this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
@@ -630,6 +685,8 @@ CRef Solver::propagate()
             }
             if (first != blocker && value(first) == l_True)
             {
+                if (opt_seq and finished_warmup)
+                    total_cycle_in_bcp_sq += 2;
                 *j++ = w;
                 continue;
             }
@@ -637,6 +694,12 @@ CRef Solver::propagate()
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
+
+                if (opt_seq and finished_warmup)
+                {
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])], 0);
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k], 1);
+                }
                 if (finished_warmup and opt_enable_acc)
                 {
                     this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
@@ -645,6 +708,8 @@ CRef Solver::propagate()
 
                 if (value(c[k]) != l_False)
                 {
+                    if (opt_seq and finished_warmup)
+                        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], 0);
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
@@ -887,7 +952,7 @@ lbool Solver::search(int nof_conflicts)
 
         first_in = false;
         CRef confl = propagate();
-        
+
         if (opt_warmup_prop > 0 and finished_init and not finished_warmup)
         {
             //std::cout<<"start warm up:"<<warmup_times<<std::endl;
