@@ -35,7 +35,8 @@ using namespace Minisat;
 #include "core/cache_wrap.h"
 //=================================================================================================
 // Options:
-
+#include <chrono>
+using namespace std::chrono;
 static const char *_cat = "CORE";
 
 static DoubleOption opt_var_decay(_cat, "var-decay", "The variable activity decay factor", 0.95, DoubleRange(0, false, 1, false));
@@ -672,11 +673,6 @@ CRef Solver::propagate()
                 total_cycle_in_bcp_sq += 2;
             if (finished_warmup and opt_enable_acc)
             {
-                //this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(first)])); //fix bug here
-                //this_wrap->add_clause_literal(ii - 1, first);
-            }
-            if (finished_warmup and opt_enable_acc)
-            {
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
@@ -754,10 +750,10 @@ CRef Solver::propagate()
     SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
     // now ready to sim
     //get_acc()->print_on(1);
-    std::vector<int> this_cycle;
 
     if (finished_warmup and opt_enable_acc)
     {
+        std::vector<int> this_cycle;
         //std::cout<<"start!"<<total_prop<<std::endl;
         for (auto &&mc : get_acc())
         {
@@ -907,6 +903,8 @@ bool Solver::simplify()
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int nof_conflicts)
 {
+
+    static nanoseconds total_time_in_bcp(0);
     assert(ok);
     static bool first_in = true;
     if (!opt_load)
@@ -946,12 +944,17 @@ lbool Solver::search(int nof_conflicts)
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
             std::cout << "current_prop " << total_prop << std::endl;
+            std::cout << "totoal_real_time: " << duration_cast<seconds>(total_time_in_bcp).count() << std::endl;
             exit(0);
             //handle exit logic,
         }
 
         first_in = false;
+
+        auto start = high_resolution_clock::now();
         CRef confl = propagate();
+        auto end = high_resolution_clock::now();
+        total_time_in_bcp += end - start;
 
         if (opt_warmup_prop > 0 and finished_init and not finished_warmup)
         {
