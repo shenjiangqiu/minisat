@@ -245,6 +245,7 @@ namespace MACC
         }
         void clear()
         {
+            current_cache_time = 0;
             m_ready = false;
             value_queue.clear();
             value_set.clear();
@@ -310,6 +311,7 @@ namespace MACC
         unsigned long long get_total_writes() { return total_writes; }
 
     private:
+        unsigned long long current_cache_time = 0;
         //std::unordered_map<unsigned long long, int> watcher_access;
         //std::unordered_map<unsigned long long, int> clause_access;
         void add_clause_read_set(assign_wrap *value, int index);

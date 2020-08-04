@@ -315,6 +315,10 @@ namespace MACC
     void ACC::handle_new_watch_list(std::queue<std::pair<int, assign_wrap *>> &waiting_queue, unsigned long long end_time, int watcher_index)
     {
         //std::ofstream acc("acc.txt", std::ios_base::app);
+        if (waiting_queue.empty())
+        {
+            return;
+        }
         int start = waiting_queue.front().first;
 
         int total = waiting_queue.front().second->get_watcher_size();
@@ -325,7 +329,21 @@ namespace MACC
         }
         auto addr = waiting_queue.front().second->get_addr();
         addr += start * 8;
-        auto result = m_cache.access(addr, 0);
+        auto result = m_cache.try_access(addr, 0);
+        if (result == cache::resfail)
+        {
+            return; // do nothing, because the cache is resfail. that should be resumed at cache fill
+        }
+        result = m_cache.access(addr, 0);
+        if (current_cache_time < end_time)
+        {
+            current_cache_time = end_time;
+        }
+        else
+        {
+            current_cache_time++;
+        }
+        int start_time = current_cache_time;
         //watcher_access[addr]++;
         //auto times = (w_size + 7) / 8;
         //auto blockAddr = cache::get_block_addr(addr);
@@ -353,14 +371,14 @@ namespace MACC
         if (result == cache::miss) //when miss, push event to fill that cache line
         {
             auto evalue = EventValue(EventType::missAccess, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, addr, -1, watcher_index);
-            auto event = Event(evalue, end_time, miss_latency + end_time);
+            auto event = Event(evalue, start_time, miss_latency + start_time);
             spdlog::debug(std::string("CacheMiss addr:") + std::to_string(addr) + std::string(", at cycle:") + std::to_string(end_time));
             m_event_queue.push(event);
         }
         if (total - start > w_size)
         {
             auto evalue = EventValue(EventType::ReadWatcherList, start, w_size, waiting_value, HardwareType::watcherListUnit, -1, addr, -1, watcher_index);
-            auto event = Event(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
+            auto event = Event(evalue, start_time, (is_hit ? 6 : miss_latency) + start_time);
 
             waiting_queue.front().first += w_size;
             if (print_level >= 2)
@@ -374,7 +392,7 @@ namespace MACC
             //only print the last one
 
             auto evalue = EventValue(EventType::ReadWatcherList, start, total - start, waiting_value, HardwareType::watcherListUnit, -1, -1, -1, watcher_index);
-            auto event = Event(evalue, end_time, (is_hit ? 6 : miss_latency) + end_time);
+            auto event = Event(evalue, start_time, (is_hit ? 6 : miss_latency) + start_time);
             if (print_level >= 1)
             {
                 std::cout << "ACC::INIT:LIT: " << waiting_value->get_value() << std::endl;
@@ -421,7 +439,7 @@ namespace MACC
     }
     int ACC::start_sim()
     {
-
+        assert(current_cache_time == 0);
         assert(m_event_queue.empty());
         assert(!m_memory_ctr_busy);
         assert(mem_ctr_queue.empty());
@@ -573,6 +591,17 @@ namespace MACC
                 for (int i = 0; i < c_num; i++)
                 {
                     handle_vault_process_mode2((temp + i) % c_num, end_time);
+                }
+                while (!waiting_queue.empty() && m_using_watcher_unit < w_num)
+                {
+                    int watcher_index = -1;
+                    auto found = std::find(watcher_busy.begin(), watcher_busy.end(), false);
+                    assert(found != watcher_busy.end());
+                    watcher_index = std::distance(watcher_busy.begin(), found);
+                    assert(watcher_index >= 0 and watcher_index < w_num);
+
+                    handle_new_watch_list(waiting_queue, i, watcher_index);
+                    i++;
                 }
                 break;
             }

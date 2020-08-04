@@ -166,7 +166,8 @@ namespace Minisat
             unsigned reloced : 1;
             unsigned size : 27;
         } header;
-        union {
+        union
+        {
             Lit lit;
             float act;
             uint32_t abs;
@@ -234,7 +235,7 @@ namespace Minisat
         //       subsumption operations to behave correctly.
         Lit &operator[](int i) { return data[i].lit; }
         Lit operator[](int i) const { return data[i].lit; }
-        operator const Lit *(void)const { return (Lit *)data; }
+        operator const Lit *(void) const { return (Lit *)data; }
 
         float &activity()
         {
@@ -371,7 +372,7 @@ namespace Minisat
                 return false;
             }
         }
-        
+
         vec<Vec> occs;
         vec<char> dirty;
         vec<Idx> dirties;
@@ -420,7 +421,7 @@ namespace Minisat
             dirties.clear(free);
         }
     };
-   
+
     template <class Idx, class Vec, class Deleted>
     void OccLists<Idx, Vec, Deleted>::cleanAll()
     {
