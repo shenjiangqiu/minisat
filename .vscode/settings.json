@@ -70,5 +70,5 @@
         "any": "cpp",
         "unordered_set": "cpp"
     },
-    "python.pythonPath": "/home/sjq/anaconda3/bin/python"
+    "python.pythonPath": "/home/sjq/.conda/envs/pymtl3/bin/python"
 }

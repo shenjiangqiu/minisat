@@ -35,8 +35,8 @@ namespace MACC
                                 m_using_clause_unit(0),
                                 m_event_queue(),
                                 vault_waiting_queue(clause_proc_num),
-                                vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 1024, 1024, "vault cache")), //16kb
-                                m_cache(1 << 4, 1 << 15, cache::lru, 1024, 1024, "l3cache"),                                //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
+                                vault_cache(clause_proc_num, cache(1 << 2, 1 << 6, cache::lru, 192, 4, "vault cache")), //16kb
+                                m_cache(1 << 4, 1 << 15, cache::lru, 192, 4, "l3cache"),                                //l3 cache   32 MB 2^25B 2^19 entry                        //16kb
                                 vault_busy(clause_proc_num, false),
                                 vault_memory_access_latency(vault_memory_access_latency),
                                 cpu_to_vault_latency(cpu_to_vault_latency),
