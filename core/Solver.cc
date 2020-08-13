@@ -494,10 +494,10 @@ auto &get_acc()
     }
     else
     {
+        //current_cycle_s.push_back(0);
         current_cycle_s.push_back(0);
-        current_cycle_s.push_back(0);
-        m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
-        m_accs.push_back(new acc(4, 8, current_cycle_s[1]));
+        //m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
+        m_accs.push_back(new acc(4, 8, current_cycle_s[0]));
         return m_accs;
     }
 }
@@ -602,6 +602,7 @@ CRef Solver::propagate()
                 //simulate value read
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], 0);
             }
+            this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
             if (value(blocker) == l_True)
             {
                 if (opt_seq and finished_warmup)
@@ -689,6 +690,7 @@ CRef Solver::propagate()
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
+                this_wrap->set_watcher_size(ii);
                 while (i < end)
                     *j++ = *i++;
             }
@@ -698,7 +700,13 @@ CRef Solver::propagate()
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
                 if (finished_warmup and opt_enable_acc)
                 {
-                    auto new_wrap = awf.create(first, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
+                    //watcher size should be 0 here, we might not access this any more.
+                    auto new_wrap = awf.create(first, 0, ii - 1, this_wrap, this_wrap->get_level() + 1);
+                    //init the block addr value, to avent segment fault
+                    for (int i = 0; i < watches[first].size(); i++)
+                    {
+                        new_wrap->add_block_addr(i, 0);
+                    }
 
                     lit_to_wrap.insert({first, new_wrap});
                 }
@@ -718,13 +726,14 @@ CRef Solver::propagate()
 
     if (finished_warmup and opt_enable_acc)
     {
-        for (auto &&mc : get_acc())
-        {
-            mc->in_m_trail.push_back(cache_interface_req(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
-        }
-        std::vector<int> this_cycle;
+        if (first_wrap != nullptr)
+            for (auto &&mc : get_acc())
+            {
+                mc->in_m_trail.push_back(cache_interface_req(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
+            }
+        //std::vector<int> this_cycle;
         //std::cout<<"start!"<<total_prop<<std::endl;
-        for (int i = 0; i < get_acc().size(); i++)
+        for (unsigned int i = 0; i < get_acc().size(); i++)
         {
             while (!get_acc()[i]->empty())
             {
@@ -738,7 +747,7 @@ CRef Solver::propagate()
             delete value.second;
         }
 
-        if (total_prop % 10000 == 1)
+        if (total_prop % 100 == 1)
         {
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < get_acc().size(); i++)
@@ -746,7 +755,7 @@ CRef Solver::propagate()
                 std::cout << "\n\nprint the " << i << " th acc" << std::endl;
                 std::cout << "total_prop: " << total_prop << std::endl;
                 std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                std::cout << get_acc()[i]->get_busy_percent() << std::endl;
+                std::cout << get_acc()[i]->get_line_trace() << std::endl;
                 end_size = ca.size();
                 std::cout << "total_clause_size: " << end_size << std::endl;
                 std::cout << "origin_clause_size: " << start_size << std::endl;
