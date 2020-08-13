@@ -18,16 +18,13 @@ DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
 
-#include "core/assign_wrap.h"
-#include "core/acc.h"
 #include <math.h>
 //#include <core/acc.h>
 //#include <core/assign_wrap.h>
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
-#include "core/sim_api.h"
-#include "core/sim_control.h"
+#include "acc.h"
 #include "core/read_config.h"
 #include <fstream>
 #include <map>
@@ -487,47 +484,23 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 using value_type = int;
-using MACC::ACC;
-using MACC::create_acc;
-std::vector<ACC *> m_acc;
-std::vector<unsigned long long> total_cycle;
-
-std::vector<ACC *> &get_acc()
+std::vector<acc *> m_accs;
+std::vector<uint64_t> current_cycle_s;
+auto &get_acc()
 {
-    if (m_acc.size() != 0)
-        return m_acc;
+    if (!m_accs.empty())
+    {
+        return m_accs;
+    }
     else
     {
-
-        auto configs = sjq::parse_file("m_config.conf");
-        std::for_each(configs.begin(), configs.end(), [](auto &c) {
-            total_cycle.push_back(0);
-            m_acc.push_back(create_acc(c.watcher_proc_size,
-                                       c.watcher_proc_num,
-                                       c.clause_proc_num,
-                                       c.miss_latency,
-                                       c.watcher_process_latency,
-                                       c.clause_process_latency,
-                                       c.vault_memory_access_latency,
-                                       c.cpu_to_vault_latency,
-                                       c.mode2,
-                                       c.ctr_latency));
-        });
-        std::cout << "finished parse the arges" << std::endl;
-        if (m_acc.empty())
-        {
-            throw std::runtime_error("the config is empty");
-        }
-        std::for_each(m_acc.begin(), m_acc.end(), [](auto &pacc) {
-            std::cout << *pacc << std::endl;
-        });
-        std::cout << "----------------------------" << std::endl;
+        current_cycle_s.push_back(0);
+        current_cycle_s.push_back(0);
+        m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
+        m_accs.push_back(new acc(4, 8, current_cycle_s[1]));
+        return m_accs;
     }
-    return m_acc;
 }
-
-assign_wrap_factory awf;
-
 CacheWrap m_cache_wrap;
 
 unsigned long long total_cycle_in_bcp_sq = 0;
@@ -558,6 +531,7 @@ void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *a
         to_be_accumulated += 119;
     }
 }
+assign_wrap_factory awf;
 CRef Solver::propagate()
 {
     //std::ofstream real("real.txt", std::ios_base::app);
@@ -576,18 +550,11 @@ CRef Solver::propagate()
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    if (finished_warmup and opt_enable_acc)
-    {
-        for (auto &&mc : get_acc())
-        {
-            mc->clear();
-        }
-    }
 
     //assign_wrap* shared_null;
     //std::unordered_map<unsigned long long, int> watcher_access;
     //std::unordered_map<unsigned long long, int> clause_access;
-
+    assign_wrap *first_wrap = nullptr;
     while (qhead < trail.size())
     {
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
@@ -608,6 +575,7 @@ CRef Solver::propagate()
             if (first)
             {
                 this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
+                first_wrap = this_wrap;
                 lit_to_wrap[p.x] = this_wrap;
             }
             else
@@ -615,10 +583,7 @@ CRef Solver::propagate()
                 this_wrap = lit_to_wrap[p.x];
                 this_wrap->set_watcher_size(ws.size());
             }
-            for (auto &&mc : get_acc())
-            {
-                mc->push_to_trail(this_wrap);
-            }
+
             this_wrap->set_addr((unsigned long long)((Watcher *)ws));
             //watcher_access[(unsigned long long)((Watcher *)ws)]++;
         }
@@ -743,44 +708,45 @@ CRef Solver::propagate()
         NextClause:;
         }
         ws.shrink(i - j);
-    }
+    } // end while (qhead < trail.size())
     propagations += num_props;
     simpDB_props -= num_props;
 
-    SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
+    //SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
     // now ready to sim
     //get_acc()->print_on(1);
 
     if (finished_warmup and opt_enable_acc)
     {
-        std::vector<int> this_cycle;
-        //std::cout<<"start!"<<total_prop<<std::endl;
         for (auto &&mc : get_acc())
         {
-            //printf("mc:%llx\n",mc);
-            //mc->print_on(2);
-            this_cycle.push_back(mc->start_sim());
-            //std::cout<<"finishedACC"<<std::endl;
+            mc->in_m_trail.push_back(cache_interface_req(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
+        }
+        std::vector<int> this_cycle;
+        //std::cout<<"start!"<<total_prop<<std::endl;
+        for (int i = 0; i < get_acc().size(); i++)
+        {
+            while (!get_acc()[i]->empty())
+            {
+                get_acc()[i]->cycle();
+                get_acc()[i]->current_cycle++;
+            }
         }
 
         for (auto value : lit_to_wrap)
         {
             delete value.second;
         }
-        for (unsigned int i = 0; i < total_cycle.size(); i++)
-        {
-            total_cycle[i] += this_cycle[i];
-        }
 
         if (total_prop % 10000 == 1)
         {
-            std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
-            for (unsigned int i = 0; i < total_cycle.size(); i++)
+            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
+            for (unsigned int i = 0; i < get_acc().size(); i++)
             {
                 std::cout << "\n\nprint the " << i << " th acc" << std::endl;
                 std::cout << "total_prop: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << total_cycle[i] << std::endl;
-                get_acc()[i]->print();
+                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                std::cout << get_acc()[i]->get_busy_percent() << std::endl;
                 end_size = ca.size();
                 std::cout << "total_clause_size: " << end_size << std::endl;
                 std::cout << "origin_clause_size: " << start_size << std::endl;
