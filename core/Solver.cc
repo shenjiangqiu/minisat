@@ -747,7 +747,7 @@ CRef Solver::propagate()
             delete value.second;
         }
 
-        if (total_prop % 100 == 1)
+        if (total_prop % 10000 == 1)
         {
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < get_acc().size(); i++)

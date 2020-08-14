@@ -19,13 +19,13 @@ RCOBJS     = $(addsuffix r,  $(COBJS))
 
 
 CXX       ?= g++
-CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC -I$(HOME)/usr/include -I/home/sjq/git/satacc/include  -I/home/sjq/git/DRAMsim3/ext/headers -I/home/sjq/git/DRAMsim3/src
+CFLAGS    ?= -Wall -Wno-parentheses -std=c++17 -fPIC -I$(HOME)/usr/include -I$(HOME)/git/satacc/include  -I$(HOME)/git/DRAMsim3/ext/headers -I$(HOME)/git/DRAMsim3/src
 LFLAGS    ?= -Wall 
 
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-LFLAGS    += -lz -L$(HOME)/usr/lib -lsjqcache -lboost_serialization  -lfmt -L /home/sjq/git/DRAMsim3/ -ldramsim3 -L/home/sjq/git/satacc/src -lsatacc
+LFLAGS    += -L$(HOME)/usr/lib64 -lz -L$(HOME)/usr/lib -lsjqcache -lboost_serialization  -lfmt -L $(HOME)/git/DRAMsim3/ -ldramsim3 -L$(HOME)/git/satacc/src -lsatacc
 
 .PHONY : s p d r rs clean 
 
