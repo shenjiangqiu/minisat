@@ -608,7 +608,9 @@ CRef Solver::propagate()
                 //simulate value read
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], 0);
             }
-            this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
+            if (finished_warmup and opt_enable_acc)
+                this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
+            //notice there, this is finished in the watcher unit,push it back to the current watcher list.
             if (value(blocker) == l_True)
             {
                 if (opt_seq and finished_warmup)
@@ -696,7 +698,8 @@ CRef Solver::propagate()
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
-                this_wrap->set_watcher_size(ii);
+                if (finished_warmup and opt_enable_acc)
+                    this_wrap->set_watcher_size(ii);
                 while (i < end)
                     *j++ = *i++;
             }
