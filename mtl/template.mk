@@ -25,7 +25,7 @@ LFLAGS    ?= -Wall
 COPTIMIZE ?= -O3
 
 CFLAGS    += -I$(MROOT) -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS
-LFLAGS    += -L$(HOME)/usr/lib64 -lz -L$(HOME)/usr/lib -lsjqcache -lboost_serialization  -lfmt -L $(HOME)/git/DRAMsim3/ -ldramsim3 -L$(HOME)/git/satacc/src -lsatacc
+LFLAGS    += -L$(HOME)/usr/lib64 -lz -L$(HOME)/usr/lib -lsjqcache -L$(HOME)/git/satacc/src -lsatacc -lfmt -L $(HOME)/git/DRAMsim3/ -ldramsim3 -lboost_serialization  
 
 .PHONY : s p d r rs clean 
 
