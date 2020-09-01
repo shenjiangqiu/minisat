@@ -1,13 +1,13 @@
 #include"core/cache_wrap.h"
-#include<cache.h>
+#include<sjqcache.h>
 std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned long long addr,int type)
     {
         auto l1_result = l1cache.access(addr,type);
-        if (l1_result == cache::hit)
+        if (l1_result == sjq::cache::hit)
         {
             return std::make_pair(hit, L1);
         }
-        if (l1_result == cache::hit_res)
+        if (l1_result == sjq::cache::hit_res)
         {
             return std::make_pair(hit_res, L1);
         }
@@ -15,11 +15,11 @@ std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned lon
         {
             l1cache.fill(addr);
             auto l2_result = l2cache.access(addr,type);
-            if (l2_result == cache::hit)
+            if (l2_result == sjq::cache::hit)
             {
                 return std::make_pair(hit, L2);
             }
-            if (l2_result == cache::hit_res)
+            if (l2_result == sjq::cache::hit_res)
             {
                 return std::make_pair(hit_res, L2);
             }
@@ -27,11 +27,11 @@ std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned lon
             {
                 l2cache.fill(addr);
                 auto l3_result = l3cache.access(addr,type);
-                if (l3_result == cache::hit)
+                if (l3_result == sjq::cache::hit)
                 {
                     return std::make_pair(hit, L3);
                 }
-                if (l3_result == cache::hit_res)
+                if (l3_result == sjq::cache::hit_res)
                 {
                     return std::make_pair(hit_res, L3);
                 }
