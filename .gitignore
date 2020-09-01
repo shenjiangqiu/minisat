@@ -1,1 +1,11 @@
 core/TEST_WRAP
+*.od
+*.o
+*.or
+minisat_debug
+minisat_release
+
+result_*
+depend.mk
+build
+core/dramsim3epoch.json

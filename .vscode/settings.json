@@ -49,6 +49,26 @@
         "streambuf": "cpp",
         "cinttypes": "cpp",
         "typeinfo": "cpp",
-        "bitset": "cpp"
-    }
+        "bitset": "cpp",
+        "cstring": "cpp",
+        "ctime": "cpp",
+        "chrono": "cpp",
+        "condition_variable": "cpp",
+        "future": "cpp",
+        "iostream": "cpp",
+        "mutex": "cpp",
+        "thread": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "list": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "ranges": "cpp",
+        "shared_mutex": "cpp",
+        "stop_token": "cpp",
+        "valarray": "cpp",
+        "any": "cpp",
+        "unordered_set": "cpp"
+    },
+    "python.pythonPath": "/home/sjq/.conda/envs/pymtl3/bin/python"
 }

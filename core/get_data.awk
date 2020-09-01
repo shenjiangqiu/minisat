@@ -1,0 +1,1 @@
+/total_prop/{ print $2}

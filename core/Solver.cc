@@ -19,20 +19,21 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 **************************************************************************************************/
 
 #include <math.h>
-#include <core/acc.h>
-#include <core/assign_wrap.h>
+//#include <core/acc.h>
+//#include <core/assign_wrap.h>
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
-#include "core/sim_api.h"
-#include "core/sim_control.h"
 #include "acc.h"
+#include "core/read_config.h"
+#include <fstream>
 #include <map>
 using namespace Minisat;
-
+#include "core/cache_wrap.h"
 //=================================================================================================
 // Options:
-
+#include <chrono>
+using namespace std::chrono;
 static const char *_cat = "CORE";
 
 static DoubleOption opt_var_decay(_cat, "var-decay", "The variable activity decay factor", 0.95, DoubleRange(0, false, 1, false));
@@ -49,6 +50,19 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 
 //=================================================================================================
 // Constructor/Destructor:
+// sjq options
+
+static BoolOption opt_enable_acc("sjq", "enable-acc", "weather enable simulation(for acc only)", false);
+
+static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup", 0);
+static Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
+BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
+BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
+Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
+StringOption opt_checkpoint_name("sjq", "checkpoint-name", "the name of checkpoint");
+BoolOption opt_seq("sjq", "seq", "weather get sequential time", false);
+
+// end sjq options
 
 Solver::Solver() :
 
@@ -72,13 +86,14 @@ Solver::Solver() :
                    solves(0), starts(0), decisions(0), rnd_decisions(0), propagations(0), conflicts(0), dec_vars(0), clauses_literals(0), learnts_literals(0), max_literals(0), tot_literals(0)
 
                    ,
-                   ok(true), cla_inc(1), var_inc(1), watches(WatcherDeleted(ca)), qhead(0), simpDB_assigns(-1), simpDB_props(0), order_heap(VarOrderLt(activity)), progress_estimate(0), remove_satisfied(true)
+                   watches(WatcherDeleted(ca)), ok(true), cla_inc(1), var_inc(1), qhead(0), simpDB_assigns(-1), simpDB_props(0), order_heap(VarOrderLt(activity)), progress_estimate(0), remove_satisfied(true)
 
                    // Resource constraints:
                    //
                    ,
                    conflict_budget(-1), propagation_budget(-1), asynch_interrupt(false)
 {
+    finished_warmup = opt_warmup_prop > 0 ? false : true;
 }
 
 Solver::~Solver()
@@ -469,105 +484,222 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 using value_type = int;
-using wrap_type = assign_wrap<value_type, int, int, int>;
-using acc_type = ACC<wrap_type>;
-std::shared_ptr<acc_type> m_acc;
-std::shared_ptr<acc_type> get_acc()
+std::vector<acc *> m_accs;
+std::vector<uint64_t> current_cycle_s;
+auto &get_acc()
 {
-    if (m_acc)
-        return m_acc;
-    return m_acc = create_acc<wrap_type>(32, 32, 32, 200, 20, 100);
+    if (!m_accs.empty())
+    {
+        return m_accs;
+    }
+    else
+    {
+        //current_cycle_s.push_back(0);
+        current_cycle_s.push_back(0);
+        current_cycle_s.push_back(0);
+
+        current_cycle_s.push_back(0);
+
+        //m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
+        m_accs.push_back(new acc(16, 16, current_cycle_s[0]));
+        m_accs.push_back(new acc(16, 32, current_cycle_s[1]));
+        m_accs.push_back(new acc(16, 64, current_cycle_s[2]));
+        return m_accs;
+    }
 }
+CacheWrap m_cache_wrap;
 
-unsigned long long total_cycle = 0;
-unsigned long long total_prop = 0;
+unsigned long long total_cycle_in_bcp_sq = 0;
 
+void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *addr, int type)
+{
+    auto result = cache.access((unsigned long long)addr, type);
+    if (result.first == CacheWrap::hit)
+    {
+
+        switch (result.second)
+        {
+        case CacheWrap::L1:
+            to_be_accumulated += 1;
+            break;
+        case CacheWrap::L2:
+            to_be_accumulated += 10;
+            break;
+        case CacheWrap::L3:
+            to_be_accumulated += 60;
+            break;
+        }
+    }
+    else
+    {
+
+        assert(result.first == CacheWrap::miss);
+        to_be_accumulated += 119;
+    }
+}
+assign_wrap_factory awf;
 CRef Solver::propagate()
 {
+    //std::ofstream real("real.txt", std::ios_base::app);
+
     //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
     //std::map<int, int> generate_relation_map;
+    if (opt_seq and finished_warmup and total_prop % 10000 == 1)
+    {
+        std::cout << "total_prop " << total_prop << std::endl;
+        std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
+    }
 
-    std::map<int, std::shared_ptr<wrap_type>> lit_to_wrap;
+    std::map<int, assign_wrap *> lit_to_wrap;
 
     CRef confl = CRef_Undef;
     int num_props = 0;
     watches.cleanAll();
-    get_acc()->clear();
-    assign_wrap_factory awf;
-    std::shared_ptr<wrap_type> shared_null;
+
+    //assign_wrap* shared_null;
+    //std::unordered_map<unsigned long long, int> watcher_access;
+    //std::unordered_map<unsigned long long, int> clause_access;
+    assign_wrap *first_wrap = nullptr;
     while (qhead < trail.size())
     {
-
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
+        if (ws.size() == 0)
+        {
+            continue;
+        }
         Watcher *i, *j, *end;
         num_props++;
 
-        bool is_first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
-        decltype(shared_null) this_wrap;
-        if (is_first)
+        assign_wrap *this_wrap = nullptr;
+        if (finished_warmup and opt_enable_acc)
         {
-            this_wrap = awf.create(p.x, ws.size(), -1, shared_null, 0); // the first one
+            bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
+
+            if (first)
+            {
+                this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
+                first_wrap = this_wrap;
+                lit_to_wrap[p.x] = this_wrap;
+            }
+            else
+            {
+                this_wrap = lit_to_wrap[p.x];
+                this_wrap->set_watcher_size(ws.size());
+            }
+
+            this_wrap->set_addr((unsigned long long)((Watcher *)ws));
+            //watcher_access[(unsigned long long)((Watcher *)ws)]++;
         }
-        else
-        {
-            this_wrap = lit_to_wrap[p.x];
-            this_wrap->set_watcher_size(ws.size());
-        }
-        get_acc()->push_to_trail(this_wrap);
+
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
+
             ii++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
+            if (opt_seq and finished_warmup)
+            {
+                //simulate watcher read
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, 0);
+                //simulate value read
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], 0);
+            }
+            if (finished_warmup and opt_enable_acc)
+                this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
+            //notice there, this is finished in the watcher unit,push it back to the current watcher list.
             if (value(blocker) == l_True)
             {
+                if (opt_seq and finished_warmup)
+                {
+                    total_cycle_in_bcp_sq += 2;
+                }
                 *j++ = *i++;
                 continue;
             }
 
             // Make sure the false literal is data[1]:
-            this_wrap->add_modified_list(ii - 1, 0); //currently we don't care about the address
 
             CRef cr = i->cref;
             Clause &c = ca[cr];
+            assert(&c == ca.lea(cr));
+            if (finished_warmup and opt_enable_acc)
+                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
+            //clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
             assert(c[1] == false_lit);
             i++;
-
+            if (opt_seq and finished_warmup)
+            {
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], 1);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], 1);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1], 1);
+            }
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
+            if (opt_seq and finished_warmup)
+                total_cycle_in_bcp_sq += 2;
+            if (finished_warmup and opt_enable_acc)
+            {
+                //std::cout<<ii-1<<std::endl;
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
+                this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
+                this_wrap->add_clause_literal(ii - 1, c[0]);
+                this_wrap->add_clause_literal(ii - 1, c[1]);
+            }
             if (first != blocker && value(first) == l_True)
             {
+                if (opt_seq and finished_warmup)
+                    total_cycle_in_bcp_sq += 2;
                 *j++ = w;
                 continue;
             }
 
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
+            {
+
+                if (opt_seq and finished_warmup)
+                {
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])], 0);
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k], 1);
+                }
+                if (finished_warmup and opt_enable_acc)
+                {
+                    this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
+                    this_wrap->add_clause_literal(ii - 1, c[k]);
+                }
+
                 if (value(c[k]) != l_False)
                 {
+                    if (opt_seq and finished_warmup)
+                        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], 0);
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
+                    if (finished_warmup and opt_enable_acc)
+                        this_wrap->add_pushed_list(ii - 1, int(~c[1]));
                     goto NextClause;
                 }
-
+            }
             // Did not find watch -- clause is unit under assignment:
             *j++ = w;
             if (value(first) == l_False)
             {
-                this_wrap->set_generated_conf(ii - 1);
+                if (finished_warmup and opt_enable_acc)
+                    this_wrap->set_generated_conf(ii - 1);
                 //get_acc()->set_ready();
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
+                if (finished_warmup and opt_enable_acc)
+                    this_wrap->set_watcher_size(ii);
                 while (i < end)
                     *j++ = *i++;
             }
@@ -575,30 +707,77 @@ CRef Solver::propagate()
             {
                 //first generate new wrap;
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
-                auto new_wrap = awf.create(first.x, 10, ii - 1, this_wrap, this_wrap->get_level() + 1);
-                lit_to_wrap.insert({first.x, new_wrap});
+                if (finished_warmup and opt_enable_acc)
+                {
+                    //watcher size should be 0 here, we might not access this any more.
+                    auto new_wrap = awf.create(first, 0, ii - 1, this_wrap, this_wrap->get_level() + 1);
+                    //init the block addr value, to avent segment fault
+                    for (int i = 0; i < watches[first].size(); i++)
+                    {
+                        new_wrap->add_block_addr(i, 0);
+                    }
+
+                    lit_to_wrap.insert({first, new_wrap});
+                }
                 uncheckedEnqueue(first, cr);
             }
 
         NextClause:;
         }
         ws.shrink(i - j);
-    }
+    } // end while (qhead < trail.size())
     propagations += num_props;
     simpDB_props -= num_props;
 
-    SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
+    //SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
     // now ready to sim
     //get_acc()->print_on(1);
-    auto this_cycle = get_acc()->start_sim();
-    total_cycle += this_cycle;
-    total_prop++;
-    if (total_prop % 10000 == 0)
+
+    if (finished_warmup and opt_enable_acc)
     {
-        std::cout << "total_prop: " << total_prop << std::endl;
-        std::cout << "total_cycle: " << total_cycle << std::endl;
+        if (first_wrap != nullptr)
+            for (auto &&mc : get_acc())
+            {
+                mc->in_m_trail.push_back(cache_interface_req(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
+            }
+        //std::vector<int> this_cycle;
+        //std::cout<<"start!"<<total_prop<<std::endl;
+        for (unsigned int i = 0; i < get_acc().size(); i++)
+        {
+            while (!get_acc()[i]->empty())
+            {
+                get_acc()[i]->cycle();
+                get_acc()[i]->current_cycle++;
+            }
+        }
+
+        for (auto value : lit_to_wrap)
+        {
+            delete value.second;
+        }
+
+        if (total_prop % 10000 == 1)
+        {
+            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
+            for (unsigned int i = 0; i < get_acc().size(); i++)
+            {
+                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+                std::cout << "total_prop: " << total_prop << std::endl;
+                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                end_size = ca.size();
+                std::cout << "total_clause_size: " << end_size << std::endl;
+                std::cout << "origin_clause_size: " << start_size << std::endl;
+                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+                //handle exit logic,
+            }
+        }
+        //if (total_prop >= 3000000)
     }
-    get_acc()->clear();
+
+    //std::cout << "total_prop:" << total_prop << std::endl;
+
     return confl;
 }
 
@@ -708,38 +887,100 @@ bool Solver::simplify()
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int nof_conflicts)
 {
-    assert(ok);
-    int backtrack_level;
-    int conflictC = 0;
-    vec<Lit> learnt_clause;
-    starts++;
 
+    static nanoseconds total_time_in_bcp(0);
+    assert(ok);
+    static bool first_in = true;
+    if (!opt_load)
+    {
+        first_in = false;
+    }
+    if (!first_in)
+    {
+        curr_backtrack_level = 0;
+        curr_conflictC = 0;
+        curr_learnt_clause.clear();
+
+        starts++;
+    }
     for (;;)
     {
+        if (opt_save)
+        {
+            if (total_prop >= (unsigned long long)opt_checkpoint_prop)
+            {
+                { //save to file now;
+                    std::ofstream ofs(opt_checkpoint_name);
+                    boost::archive::binary_oarchive oa(ofs);
+                    oa &(*this);
+                    std::cout << "save the checkpoint to file " << opt_checkpoint_name << std::endl;
+                }
+                exit(0);
+            }
+        }
+
+        if (opt_end_prop > 0 and total_prop >= (unsigned long long)opt_end_prop)
+        {
+
+            end_size = ca.size();
+            std::cout << "total_clause_size: " << end_size << std::endl;
+            std::cout << "origin_clause_size: " << start_size << std::endl;
+            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            std::cout << "current_prop " << total_prop << std::endl;
+            std::cout << "totoal_real_time: " << duration_cast<seconds>(total_time_in_bcp).count() << std::endl;
+            exit(0);
+            //handle exit logic,
+        }
+
+        first_in = false;
+
+        auto start = high_resolution_clock::now();
         CRef confl = propagate();
+        auto end = high_resolution_clock::now();
+        total_time_in_bcp += end - start;
+
+        if (opt_warmup_prop > 0 and finished_init and not finished_warmup)
+        {
+            //std::cout<<"start warm up:"<<warmup_times<<std::endl;
+            if (total_warmup == 0)
+            {
+                start_size = ca.size();
+            }
+            total_warmup++;
+            //std::cout << "warmup:" << total_warmup << std::endl;
+            if (total_warmup >= (unsigned long long)opt_warmup_prop)
+            //if (warmup_times >= 100)
+            {
+                finished_warmup = true;
+            }
+        }
+        if (finished_init)
+            total_prop++;
+
         if (confl != CRef_Undef)
         {
             // CONFLICT
             conflicts++;
-            conflictC++;
+            curr_conflictC++;
             if (decisionLevel() == 0)
                 return l_False;
 
-            learnt_clause.clear();
-            analyze(confl, learnt_clause, backtrack_level);
-            cancelUntil(backtrack_level);
+            curr_learnt_clause.clear();
+            analyze(confl, curr_learnt_clause, curr_backtrack_level);
+            cancelUntil(curr_backtrack_level);
 
-            if (learnt_clause.size() == 1)
+            if (curr_learnt_clause.size() == 1)
             {
-                uncheckedEnqueue(learnt_clause[0]);
+                uncheckedEnqueue(curr_learnt_clause[0]);
             }
             else
             {
-                CRef cr = ca.alloc(learnt_clause, true);
+                CRef cr = ca.alloc(curr_learnt_clause, true);
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
-                uncheckedEnqueue(learnt_clause[0], cr);
+                uncheckedEnqueue(curr_learnt_clause[0], cr);
             }
 
             varDecayActivity();
@@ -761,7 +1002,7 @@ lbool Solver::search(int nof_conflicts)
         else
         {
             // NO CONFLICT
-            if (nof_conflicts >= 0 && conflictC >= nof_conflicts || !withinBudget())
+            if (nof_conflicts >= 0 && curr_conflictC >= nof_conflicts || !withinBudget())
             {
                 // Reached bound on number of conflicts:
                 progress_estimate = progressEstimate();
@@ -866,18 +1107,25 @@ static double luby(double y, int x)
 // NOTE: assumptions passed in member-variable 'assumptions'.
 lbool Solver::solve_()
 {
-    model.clear();
-    conflict.clear();
-    if (!ok)
-        return l_False;
+    static bool first_in = true;
+    if (!opt_load)
+    {
+        first_in = false;
+    }
+    if (!first_in)
+    {
+        model.clear();
+        conflict.clear();
+        if (!ok)
+            return l_False;
 
-    solves++;
+        solves++;
 
-    max_learnts = nClauses() * learntsize_factor;
-    learntsize_adjust_confl = learntsize_adjust_start_confl;
-    learntsize_adjust_cnt = (int)learntsize_adjust_confl;
-    lbool status = l_Undef;
-
+        max_learnts = nClauses() * learntsize_factor;
+        learntsize_adjust_confl = learntsize_adjust_start_confl;
+        learntsize_adjust_cnt = (int)learntsize_adjust_confl;
+        curr_stats = l_Undef;
+    }
     if (verbosity >= 1)
     {
         printf("============================[ Search Statistics ]==============================\n");
@@ -887,11 +1135,16 @@ lbool Solver::solve_()
     }
 
     // Search:
-    int curr_restarts = 0;
-    while (status == l_Undef)
+    if (!first_in)
+        curr_restarts = 0;
+    while (curr_stats == l_Undef)
     {
-        double rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
-        status = search(rest_base * restart_first);
+        if (!first_in)
+        {
+            curr_rest_base = luby_restart ? luby(restart_inc, curr_restarts) : pow(restart_inc, curr_restarts);
+        }
+        first_in = false;
+        curr_stats = search(curr_rest_base * restart_first);
         if (!withinBudget())
             break;
         curr_restarts++;
@@ -900,18 +1153,18 @@ lbool Solver::solve_()
     if (verbosity >= 1)
         printf("===============================================================================\n");
 
-    if (status == l_True)
+    if (curr_stats == l_True)
     {
         // Extend & copy model:
         model.growTo(nVars());
         for (int i = 0; i < nVars(); i++)
             model[i] = value(i);
     }
-    else if (status == l_False && conflict.size() == 0)
+    else if (curr_stats == l_False && conflict.size() == 0)
         ok = false;
 
     cancelUntil(0);
-    return status;
+    return curr_stats;
 }
 
 //=================================================================================================
