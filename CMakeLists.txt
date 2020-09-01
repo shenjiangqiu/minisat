@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 project(minisat)
 
 add_subdirectory(satacc)
+set(Boost_USE_STATIC_LIBS ON)
+
 find_package(Boost REQUIRED COMPONENTS serialization)
 find_package(ZLIB REQUIRED)
 
