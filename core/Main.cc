@@ -22,7 +22,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <iostream>
 #include <signal.h>
 #include <zlib.h>
-
+#include <icnt_wrapper.h>
 #include "utils/System.h"
 #include "utils/ParseUtils.h"
 #include "utils/Options.h"
@@ -95,7 +95,12 @@ int main(int argc, char **argv)
         IntOption mem_lim("MAIN", "mem-lim", "Limit on memory usage in megabytes.\n", INT32_MAX, IntRange(0, INT32_MAX));
 
         parseOptions(argc, argv, true);
+        global_init m_init;//will apply the config into the config structure.
+        icnt_wrapper_init();
+        icnt_create(16,16);
+        icnt_init();
 
+        
         Solver S; //will read the
         if (opt_load)
         {
