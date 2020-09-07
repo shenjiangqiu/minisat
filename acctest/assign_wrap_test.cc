@@ -15,11 +15,11 @@ TEST_CASE("main test")
     assign_wrap_factory af;
     //std::shared_ptr<assign_wrap<int, int, int, int>> nullptr;
     auto w1 = af.create(1, 100, -1, nullptr);
-    w1->add_modified_list(10, 1);
-    w1->add_modified_list(11, 2);
-    w1->add_modified_list(12, 3);
-    w1->add_modified_list(13, 4);
-    w1->add_modified_list(14, 5);
+    w1->add_clause_addr(10, 1);
+    w1->add_clause_addr(11, 2);
+    w1->add_clause_addr(12, 3);
+    w1->add_clause_addr(13, 4);
+    w1->add_clause_addr(14, 5);
 
     //const auto &list = w1->get_modified();
 
@@ -46,11 +46,11 @@ TEST_CASE("EventQueue")
         assign_wrap_factory af;
         auto w1 = af.create(1, 100, -1, nullptr);
 
-        w1->add_modified_list(10, 1);
-        w1->add_modified_list(11, 2);
-        w1->add_modified_list(12, 3);
-        w1->add_modified_list(13, 4);
-        w1->add_modified_list(14, 5);
+        w1->add_clause_addr(10, 1);
+        w1->add_clause_addr(11, 2);
+        w1->add_clause_addr(12, 3);
+        w1->add_clause_addr(13, 4);
+        w1->add_clause_addr(14, 5);
         EventQueue m_queue;
         auto evalue = EventValue(EventType::FinishAndSendClause, 0, 10, w1, HardwareType::ClauseUnit, 1);
         auto event = Event(evalue, 0, 10);
@@ -72,12 +72,12 @@ TEST_CASE("real acc test")
     {
 
         auto w1 = af.create(1, 100, -1, nullptr, 0);
-        w1->add_modified_list(10, 1 << 9);
+        w1->add_clause_addr(10, 1 << 9);
         w1->add_detail(10, 12345);
         w1->add_detail(10, 12346);
         w1->add_detail(10, 22347);
 
-        w1->add_modified_list(11, 2 << 9);
+        w1->add_clause_addr(11, 2 << 9);
         w1->add_detail(11, 112345);
         w1->add_detail(11, 112346);
         w1->add_detail(11, 122347);
@@ -85,7 +85,7 @@ TEST_CASE("real acc test")
         w1->add_detail(11, 312346);
         w1->add_detail(11, 322347);
         auto w2 = af.create(2, 100, 10, w1, 1);
-        w2->add_modified_list(12, 3 << 9);
+        w2->add_clause_addr(12, 3 << 9);
         w2->add_detail(12, 412345);
         w2->add_detail(12, 412346);
         w2->add_detail(12, 422347);
@@ -112,12 +112,12 @@ TEST_CASE("real acc test")
     {
 
         auto w1 = af.create(1, 100, -1, nullptr, 0);
-        w1->add_modified_list(10, 1 << 9);
-        w1->add_modified_list(11, 2 << 9);
-        w1->add_modified_list(12, 1 << 9);
-        w1->add_modified_list(13, 2 << 9);
+        w1->add_clause_addr(10, 1 << 9);
+        w1->add_clause_addr(11, 2 << 9);
+        w1->add_clause_addr(12, 1 << 9);
+        w1->add_clause_addr(13, 2 << 9);
         auto w2 = af.create(2, 100, 10, w1, 1);
-        w2->add_modified_list(11, 1);
+        w2->add_clause_addr(11, 1);
         auto w3 = af.create(3, 100, 11, w2, 3);
         //std::shared_ptr<...> create_acc<...>(int watcher_proc_size, int watcher_proc_num, int clause_proc_num, int miss_latency, int watcher_process_latency, int clause_process_latency)
 
@@ -146,7 +146,7 @@ TEST_CASE("real acc test")
         }
         SECTION("3, third conf")
         {
-            w3->add_modified_list(11, 10);
+            w3->add_clause_addr(11, 10);
             w3->set_generated_conf(11);
             acc->set_ready();
             //acc->print_on();
@@ -161,12 +161,12 @@ TEST_CASE("real acc test")
         spdlog::set_level(spdlog::level::debug);
         auto acc = create_acc(32, 1, 16, 119, 32, 200, 100, 1, true, 19);
         auto w1 = af.create(1, 100, -1, nullptr, 0);
-        w1->add_modified_list(10, 1 << 7);
-        w1->add_modified_list(11, 2 << 7);
-        w1->add_modified_list(12, 3 << 7);
-        w1->add_modified_list(13, 4 << 7);
+        w1->add_clause_addr(10, 1 << 7);
+        w1->add_clause_addr(11, 2 << 7);
+        w1->add_clause_addr(12, 3 << 7);
+        w1->add_clause_addr(13, 4 << 7);
         auto w2 = af.create(2, 100, 10, w1, w1->get_level()+1);
-        w2->add_modified_list(11, 1);
+        w2->add_clause_addr(11, 1);
         acc->push_to_trail(w1);
         acc->push_to_trail(w2);
         acc->start_sim();

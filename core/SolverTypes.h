@@ -44,7 +44,7 @@ namespace Minisat
     struct Lit
     {
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int version)
+        void serialize(Archive &ar, const unsigned int )
         {
             ar &x;
         }
@@ -115,7 +115,7 @@ namespace Minisat
 
     public:
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int version)
+        void serialize(Archive &ar, const unsigned int )
         {
             ar &value;
         }
@@ -277,7 +277,7 @@ namespace Minisat
             }
         }
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int version)
+        void serialize(Archive &ar, const unsigned int )
         {
             ar &boost::serialization::base_object<RegionAllocator<uint32_t>>(*this);
             ar &extra_clause_field;
@@ -380,7 +380,7 @@ namespace Minisat
 
     public:
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int file_version)
+        void serialize(Archive &ar, const unsigned int )
         {
             ar &occs;
             ar &dirty;

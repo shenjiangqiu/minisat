@@ -57,7 +57,7 @@ static Solver *solver;
 // Note that '_exit()' rather than 'exit()' has to be used. The reason is that 'exit()' calls
 // destructors and may cause deadlocks if a malloc/free function happens to be running (these
 // functions are guarded by locks for multithreaded use).
-static void SIGINT_exit(int signum)
+static void SIGINT_exit(int )
 {
     printf("\n");
     printf("*** INTERRUPTED ***\n");

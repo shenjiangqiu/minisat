@@ -6,6 +6,7 @@ set(SPDLOG_FMT_EXTERNAL ON)
 
 find_package(Boost REQUIRED COMPONENTS serialization)
 find_package(ZLIB REQUIRED)
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 
 file(GLOB SOURCES core/*.cc)
 add_executable(minisat "${SOURCES}")

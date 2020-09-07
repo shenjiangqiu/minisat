@@ -221,7 +221,7 @@ void Solver::cancelUntil(int level)
         {
             Var x = var(trail[c]);
             assigns[x] = l_Undef;
-            if (phase_saving > 1 || (phase_saving == 1) && c > trail_lim.last())
+            if (phase_saving > 1 ||( (phase_saving == 1) && c > trail_lim.last()))
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x);
         }
@@ -627,7 +627,7 @@ CRef Solver::propagate()
             Clause &c = ca[cr];
             assert(&c == ca.lea(cr));
             if (finished_warmup and opt_enable_acc)
-                this_wrap->add_modified_list(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
+                this_wrap->add_clause_addr(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
             //clause_access[(unsigned long long)ca.lea(cr)]++;
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -684,7 +684,13 @@ CRef Solver::propagate()
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
                     if (finished_warmup and opt_enable_acc)
+                    {
                         this_wrap->add_pushed_list(ii - 1, int(~c[1]));
+                        auto &pushed_watcher = watches[~c[1]];
+                        auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
+
+                        this_wrap->add_pushed_addr(ii - 1, (unsigned long long)&last_location);
+                    }
                     goto NextClause;
                 }
             }
@@ -1002,7 +1008,7 @@ lbool Solver::search(int nof_conflicts)
         else
         {
             // NO CONFLICT
-            if (nof_conflicts >= 0 && curr_conflictC >= nof_conflicts || !withinBudget())
+            if ((nof_conflicts >= 0 && curr_conflictC >= nof_conflicts) || !withinBudget())
             {
                 // Reached bound on number of conflicts:
                 progress_estimate = progressEstimate();
@@ -1202,7 +1208,7 @@ void Solver::toDimacs(const char *file, const vec<Lit> &assumps)
     fclose(f);
 }
 
-void Solver::toDimacs(FILE *f, const vec<Lit> &assumps)
+void Solver::toDimacs(FILE *f, const vec<Lit> &)
 {
     // Handle case when solver is in contradictory state:
     if (!ok)

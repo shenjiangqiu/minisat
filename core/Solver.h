@@ -129,7 +129,7 @@ namespace Minisat
             }
         }
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int version)
+        void serialize(Archive &ar, const unsigned int )
         {
 
             //stack infomation
@@ -326,7 +326,7 @@ namespace Minisat
                 }
             }
             template <class Archive>
-            void serialize(Archive &ar, const unsigned int version)
+            void serialize(Archive &ar, const unsigned int )
             {
                 ar &reason;
                 ar &level;
@@ -338,7 +338,7 @@ namespace Minisat
         struct Watcher
         {
             template <class Archive>
-            void serialize(Archive &ar, const unsigned int version)
+            void serialize(Archive &ar, const unsigned int )
             {
                 ar &cref;
                 ar &blocker;
