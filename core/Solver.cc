@@ -221,7 +221,7 @@ void Solver::cancelUntil(int level)
         {
             Var x = var(trail[c]);
             assigns[x] = l_Undef;
-            if (phase_saving > 1 ||( (phase_saving == 1) && c > trail_lim.last()))
+            if (phase_saving > 1 || ((phase_saving == 1) && c > trail_lim.last()))
                 polarity[x] = sign(trail[c]);
             insertVarOrder(x);
         }
@@ -744,7 +744,7 @@ CRef Solver::propagate()
         if (first_wrap != nullptr)
             for (auto &&mc : get_acc())
             {
-                mc->in_m_trail.push_back(cache_interface_req(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
+                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
             }
         //std::vector<int> this_cycle;
         //std::cout<<"start!"<<total_prop<<std::endl;
@@ -756,7 +756,8 @@ CRef Solver::propagate()
                 get_acc()[i]->current_cycle++;
             }
         }
-
+        //clean the evironment
+        //maybe we need use unique_ptr? 
         for (auto value : lit_to_wrap)
         {
             delete value.second;
