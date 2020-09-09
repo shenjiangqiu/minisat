@@ -496,14 +496,14 @@ auto &get_acc()
     {
         //current_cycle_s.push_back(0);
         current_cycle_s.push_back(0);
-        current_cycle_s.push_back(0);
+        //current_cycle_s.push_back(0);
 
-        current_cycle_s.push_back(0);
+        //current_cycle_s.push_back(0);
 
         //m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
         m_accs.push_back(new acc(16, 16, current_cycle_s[0]));
-        m_accs.push_back(new acc(16, 32, current_cycle_s[1]));
-        m_accs.push_back(new acc(16, 64, current_cycle_s[2]));
+        //m_accs.push_back(new acc(16, 32, current_cycle_s[1]));
+        //m_accs.push_back(new acc(16, 64, current_cycle_s[2]));
         return m_accs;
     }
 }
@@ -757,7 +757,7 @@ CRef Solver::propagate()
             }
         }
         //clean the evironment
-        //maybe we need use unique_ptr? 
+        //maybe we need use unique_ptr?
         for (auto value : lit_to_wrap)
         {
             delete value.second;

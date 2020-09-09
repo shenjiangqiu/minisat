@@ -17,7 +17,7 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FO
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **************************************************************************************************/
-
+#include <boost/log/trivial.hpp>
 #include <errno.h>
 #include <iostream>
 #include <signal.h>
@@ -29,6 +29,10 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "core/Dimacs.h"
 #include "core/Solver.h"
 #include <spdlog/spdlog.h>
+
+
+namespace logging = boost::log;
+
 using namespace Minisat;
 
 //=================================================================================================
@@ -57,7 +61,7 @@ static Solver *solver;
 // Note that '_exit()' rather than 'exit()' has to be used. The reason is that 'exit()' calls
 // destructors and may cause deadlocks if a malloc/free function happens to be running (these
 // functions are guarded by locks for multithreaded use).
-static void SIGINT_exit(int )
+static void SIGINT_exit(int)
 {
     printf("\n");
     printf("*** INTERRUPTED ***\n");
@@ -75,6 +79,7 @@ static void SIGINT_exit(int )
 
 int main(int argc, char **argv)
 {
+
     spdlog::set_level(spdlog::level::err);
     try
     {
@@ -95,12 +100,8 @@ int main(int argc, char **argv)
         IntOption mem_lim("MAIN", "mem-lim", "Limit on memory usage in megabytes.\n", INT32_MAX, IntRange(0, INT32_MAX));
 
         parseOptions(argc, argv, true);
-        global_init m_init;//will apply the config into the config structure.
-        icnt_wrapper_init();
-        icnt_create(16,16);
-        icnt_init();
+        //global_init m_init; //will apply the config into the config structure.
 
-        
         Solver S; //will read the
         if (opt_load)
         {

@@ -12,3 +12,4 @@ file(GLOB SOURCES core/*.cc)
 add_executable(minisat "${SOURCES}")
 target_link_libraries(minisat PUBLIC minisat_utiles satacc ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} spdlog)
 target_include_directories(minisat PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+
