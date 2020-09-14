@@ -11,5 +11,5 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 file(GLOB SOURCES core/*.cc)
 add_executable(minisat "${SOURCES}")
 target_link_libraries(minisat PUBLIC minisat_utiles satacc ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} spdlog)
-target_include_directories(minisat PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(minisat PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" ${Boost_INCLUDE_DIRS} )
 
