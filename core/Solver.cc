@@ -744,7 +744,7 @@ CRef Solver::propagate()
         if (first_wrap != nullptr)
             for (auto &&mc : get_acc())
             {
-                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(ReadType::ReadWatcher, 0, 0, 0, first_wrap));
+                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcher, 0, 0, 0, first_wrap));
             }
         //std::vector<int> this_cycle;
         //std::cout<<"start!"<<total_prop<<std::endl;
