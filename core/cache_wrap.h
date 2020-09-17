@@ -23,7 +23,7 @@ public:
         L2,
         L3,
     };
-    std::pair<status, hit_where> access(unsigned long long addr, int type);
+    std::pair<status, hit_where> access(unsigned long long addr, sjq::cache::access_type type);
 
 private:
     sjq::cache l1cache;

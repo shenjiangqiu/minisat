@@ -29,7 +29,7 @@ private:
 };
 enum class EventType
 {
-    ReadWatcherList,
+    ReadWatcherDataList,
     ProcessWatcherList,
     FinishAndSendClause,
     ProcessClause,
@@ -39,8 +39,8 @@ std::ostream &operator<<(std::ostream &os, EventType type)
 {
     switch (type)
     {
-    case EventType::ReadWatcherList:
-        os << "ReadWatcherList";
+    case EventType::ReadWatcherDataList:
+        os << "ReadWatcherDataList";
         break;
     case EventType::ProcessWatcherList:
         os << "ProcessWatcherList";

@@ -511,7 +511,7 @@ CacheWrap m_cache_wrap;
 
 unsigned long long total_cycle_in_bcp_sq = 0;
 
-void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *addr, int type)
+void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *addr, sjq::cache::access_type type)
 {
     auto result = cache.access((unsigned long long)addr, type);
     if (result.first == CacheWrap::hit)
@@ -604,9 +604,9 @@ CRef Solver::propagate()
             if (opt_seq and finished_warmup)
             {
                 //simulate watcher read
-                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, 0);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, sjq::cache::read);
                 //simulate value read
-                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], 0);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], sjq::cache::read);
             }
             if (finished_warmup and opt_enable_acc)
                 this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
@@ -636,9 +636,9 @@ CRef Solver::propagate()
             i++;
             if (opt_seq and finished_warmup)
             {
-                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], 1);
-                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], 1);
-                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1], 1);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], sjq::cache::read);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], sjq::cache::read);
+                accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1], sjq::cache::read);
             }
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
@@ -667,8 +667,8 @@ CRef Solver::propagate()
 
                 if (opt_seq and finished_warmup)
                 {
-                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])], 0);
-                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k], 1);
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])], sjq::cache::read);
+                    accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k], sjq::cache::read);
                 }
                 if (finished_warmup and opt_enable_acc)
                 {
@@ -679,7 +679,7 @@ CRef Solver::propagate()
                 if (value(c[k]) != l_False)
                 {
                     if (opt_seq and finished_warmup)
-                        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], 0);
+                        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], sjq::cache::read);
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
@@ -744,7 +744,7 @@ CRef Solver::propagate()
         if (first_wrap != nullptr)
             for (auto &&mc : get_acc())
             {
-                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcher, 0, 0, 0, first_wrap));
+                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcherData, 0, 0, 0, first_wrap));
             }
         //std::vector<int> this_cycle;
         //std::cout<<"start!"<<total_prop<<std::endl;

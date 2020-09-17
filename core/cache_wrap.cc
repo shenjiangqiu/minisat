@@ -1,6 +1,6 @@
 #include"core/cache_wrap.h"
 #include<sjqcache.h>
-std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned long long addr,int type)
+std::pair<CacheWrap::status,CacheWrap::hit_where> CacheWrap::access(unsigned long long addr,sjq::cache::access_type type)
     {
         auto l1_result = l1cache.access(addr,type);
         if (l1_result == sjq::cache::hit)
