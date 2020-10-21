@@ -540,18 +540,22 @@ void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *a
 assign_wrap_factory awf;
 CRef Solver::propagate()
 {
-    //std::ofstream real("real.txt", std::ios_base::app);
+//std::ofstream real("real.txt", std::ios_base::app);
 
-    //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
+//SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
 
-    //std::map<int, int> generate_relation_map;
+//std::map<int, int> generate_relation_map;
+#ifndef REAL_CPU_TIME
     if (opt_seq and finished_warmup and total_prop % 10000 == 1)
     {
         std::cout << "total_prop " << total_prop << std::endl;
         std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
     }
 
+#endif
+#ifndef REAL_CPU_TIME
     std::map<int, assign_wrap *> lit_to_wrap;
+#endif
 
     CRef confl = CRef_Undef;
     int num_props = 0;
@@ -560,7 +564,11 @@ CRef Solver::propagate()
     //assign_wrap* shared_null;
     //std::unordered_map<unsigned long long, int> watcher_access;
     //std::unordered_map<unsigned long long, int> clause_access;
+#ifndef REAL_CPU_TIME
+
     assign_wrap *first_wrap = nullptr;
+#endif
+
     while (qhead < trail.size())
     {
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
@@ -572,6 +580,7 @@ CRef Solver::propagate()
         }
         Watcher *i, *j, *end;
         num_props++;
+#ifndef REAL_CPU_TIME
 
         assign_wrap *this_wrap = nullptr;
         if (finished_warmup and opt_enable_acc)
@@ -593,6 +602,7 @@ CRef Solver::propagate()
             this_wrap->set_addr((unsigned long long)((Watcher *)ws));
             //watcher_access[(unsigned long long)((Watcher *)ws)]++;
         }
+#endif
 
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
@@ -601,6 +611,8 @@ CRef Solver::propagate()
             ii++;
             // Try to avoid inspecting the clause:
             Lit blocker = i->blocker;
+#ifndef REAL_CPU_TIME
+
             if (opt_seq and finished_warmup)
             {
                 //simulate watcher read
@@ -610,13 +622,20 @@ CRef Solver::propagate()
             }
             if (finished_warmup and opt_enable_acc)
                 this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
+
+#endif
+
             //notice there, this is finished in the watcher unit,push it back to the current watcher list.
             if (value(blocker) == l_True)
             {
+#ifndef REAL_CPU_TIME
+
                 if (opt_seq and finished_warmup)
                 {
                     total_cycle_in_bcp_sq += 2;
                 }
+#endif
+
                 *j++ = *i++;
                 continue;
             }
@@ -626,23 +645,34 @@ CRef Solver::propagate()
             CRef cr = i->cref;
             Clause &c = ca[cr];
             assert(&c == ca.lea(cr));
+#ifndef REAL_CPU_TIME
+
             if (finished_warmup and opt_enable_acc)
                 this_wrap->add_clause_addr(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
-            //clause_access[(unsigned long long)ca.lea(cr)]++;
+
+                //clause_access[(unsigned long long)ca.lea(cr)]++;
+#endif
             Lit false_lit = ~p;
             if (c[0] == false_lit)
                 c[0] = c[1], c[1] = false_lit;
             assert(c[1] == false_lit);
             i++;
+#ifndef REAL_CPU_TIME
+
             if (opt_seq and finished_warmup)
             {
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], sjq::cache::read);
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], sjq::cache::read);
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1], sjq::cache::read);
             }
+#endif
+
             // If 0th watch is true, then clause is already satisfied.
             Lit first = c[0];
             Watcher w = Watcher(cr, first);
+
+#ifndef REAL_CPU_TIME
+
             if (opt_seq and finished_warmup)
                 total_cycle_in_bcp_sq += 2;
             if (finished_warmup and opt_enable_acc)
@@ -653,10 +683,16 @@ CRef Solver::propagate()
                 this_wrap->add_clause_literal(ii - 1, c[0]);
                 this_wrap->add_clause_literal(ii - 1, c[1]);
             }
+#endif
+
             if (first != blocker && value(first) == l_True)
             {
+#ifndef REAL_CPU_TIME
+
                 if (opt_seq and finished_warmup)
                     total_cycle_in_bcp_sq += 2;
+#endif
+
                 *j++ = w;
                 continue;
             }
@@ -664,6 +700,7 @@ CRef Solver::propagate()
             // Look for new watch:
             for (int k = 2; k < c.size(); k++)
             {
+#ifndef REAL_CPU_TIME
 
                 if (opt_seq and finished_warmup)
                 {
@@ -675,14 +712,20 @@ CRef Solver::propagate()
                     this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
                     this_wrap->add_clause_literal(ii - 1, c[k]);
                 }
+#endif
 
                 if (value(c[k]) != l_False)
                 {
+#ifndef REAL_CPU_TIME
+
                     if (opt_seq and finished_warmup)
                         accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], sjq::cache::read);
+#endif
                     c[1] = c[k];
                     c[k] = false_lit;
                     watches[~c[1]].push(w);
+#ifndef REAL_CPU_TIME
+
                     if (finished_warmup and opt_enable_acc)
                     {
                         this_wrap->add_pushed_list(ii - 1, int(~c[1]));
@@ -691,6 +734,8 @@ CRef Solver::propagate()
 
                         this_wrap->add_pushed_addr(ii - 1, (unsigned long long)&last_location);
                     }
+#endif
+
                     goto NextClause;
                 }
             }
@@ -698,14 +743,22 @@ CRef Solver::propagate()
             *j++ = w;
             if (value(first) == l_False)
             {
+#ifndef REAL_CPU_TIME
+
                 if (finished_warmup and opt_enable_acc)
                     this_wrap->set_generated_conf(ii - 1);
+#endif
+
                 //get_acc()->set_ready();
                 confl = cr;
                 qhead = trail.size();
                 // Copy the remaining watches:
+#ifndef REAL_CPU_TIME
+
                 if (finished_warmup and opt_enable_acc)
                     this_wrap->set_watcher_size(ii);
+#endif
+
                 while (i < end)
                     *j++ = *i++;
             }
@@ -713,6 +766,8 @@ CRef Solver::propagate()
             {
                 //first generate new wrap;
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
+#ifndef REAL_CPU_TIME
+
                 if (finished_warmup and opt_enable_acc)
                 {
                     //watcher size should be 0 here, we might not access this any more.
@@ -725,6 +780,7 @@ CRef Solver::propagate()
 
                     lit_to_wrap.insert({first, new_wrap});
                 }
+#endif
                 uncheckedEnqueue(first, cr);
             }
 
@@ -738,6 +794,7 @@ CRef Solver::propagate()
     //SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
     // now ready to sim
     //get_acc()->print_on(1);
+#ifndef REAL_CPU_TIME
 
     if (finished_warmup and opt_enable_acc)
     {
@@ -782,6 +839,7 @@ CRef Solver::propagate()
         }
         //if (total_prop >= 3000000)
     }
+#endif
 
     //std::cout << "total_prop:" << total_prop << std::endl;
 
@@ -894,8 +952,8 @@ bool Solver::simplify()
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int nof_conflicts)
 {
-
     static nanoseconds total_time_in_bcp(0);
+
     assert(ok);
     static bool first_in = true;
     if (!opt_load)
@@ -909,6 +967,10 @@ lbool Solver::search(int nof_conflicts)
         curr_learnt_clause.clear();
 
         starts++;
+    }
+    else
+    {
+        //the current temp stats have been loaded by boosts
     }
     for (;;)
     {
@@ -935,17 +997,31 @@ lbool Solver::search(int nof_conflicts)
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
             std::cout << "current_prop " << total_prop << std::endl;
-            std::cout << "totoal_real_time: " << duration_cast<seconds>(total_time_in_bcp).count() << std::endl;
+#ifdef REAL_CPU_TIME
+            std::cout << "totoal_real_time: " << duration_cast<milliseconds>(total_time_in_bcp).count() << std::endl;
+#endif
             exit(0);
             //handle exit logic,
         }
+#ifdef REAL_CPU_TIME
+
+        if (total_prop % 10000 == 10 or total_prop % 10000 == 0)
+        {
+            std::cout << "ENABLE_REAL_total_prop: " << total_prop << std::endl;
+            std::cout << "total_time_in_bcp: " << duration_cast<milliseconds>(total_time_in_bcp).count() << std::endl;
+        }
+#endif
 
         first_in = false;
-
+#ifdef REAL_CPU_TIME
         auto start = high_resolution_clock::now();
+#endif
         CRef confl = propagate();
+#ifdef REAL_CPU_TIME
+
         auto end = high_resolution_clock::now();
         total_time_in_bcp += end - start;
+#endif
 
         if (opt_warmup_prop > 0 and finished_init and not finished_warmup)
         {
