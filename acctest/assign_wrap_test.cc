@@ -5,12 +5,11 @@
 //#include "event_queue.h"
 //#include "event.h"
 #include <iostream>
-#include <spdlog/spdlog.h>
+
 
 using namespace MACC;
 TEST_CASE("main test")
 {
-    spdlog::set_level(spdlog::level::debug);
 
     assign_wrap_factory af;
     //std::shared_ptr<assign_wrap<int, int, int, int>> nullptr;
@@ -39,7 +38,6 @@ TEST_CASE("main test")
 
 TEST_CASE("EventQueue")
 {
-    spdlog::set_level(spdlog::level::debug);
 
     SECTION("True test for event_queue")
     {
@@ -65,7 +63,6 @@ TEST_CASE("EventQueue")
 
 TEST_CASE("real acc test")
 {
-    spdlog::set_level(spdlog::level::err);
 
     assign_wrap_factory af;
     SECTION("simple test")
@@ -158,7 +155,6 @@ TEST_CASE("real acc test")
     }
     SECTION("4, mode2 test")
     {
-        spdlog::set_level(spdlog::level::debug);
         auto acc = create_acc(32, 1, 16, 119, 32, 200, 100, 1, true, 19);
         auto w1 = af.create(1, 100, -1, nullptr, 0);
         w1->add_clause_addr(10, 1 << 7);

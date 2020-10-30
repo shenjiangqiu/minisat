@@ -546,7 +546,7 @@ CRef Solver::propagate()
 
 //std::map<int, int> generate_relation_map;
 #ifndef REAL_CPU_TIME
-    if (opt_seq and finished_warmup and total_prop % 10000 == 1)
+    if (opt_seq and  finished_init and finished_warmup and total_prop % 10000 == 1)
     {
         std::cout << "total_prop " << total_prop << std::endl;
         std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
@@ -583,7 +583,7 @@ CRef Solver::propagate()
 #ifndef REAL_CPU_TIME
 
         assign_wrap *this_wrap = nullptr;
-        if (finished_warmup and opt_enable_acc)
+        if (finished_init and finished_warmup and opt_enable_acc)
         {
             bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
 
@@ -613,14 +613,14 @@ CRef Solver::propagate()
             Lit blocker = i->blocker;
 #ifndef REAL_CPU_TIME
 
-            if (opt_seq and finished_warmup)
+            if (opt_seq and finished_init and finished_warmup)
             {
                 //simulate watcher read
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, sjq::cache::read);
                 //simulate value read
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)], sjq::cache::read);
             }
-            if (finished_warmup and opt_enable_acc)
+            if (finished_init and finished_warmup and opt_enable_acc)
                 this_wrap->add_block_addr(ii - 1, (unsigned long long)(&assigns[var(blocker)]));
 
 #endif
@@ -630,7 +630,7 @@ CRef Solver::propagate()
             {
 #ifndef REAL_CPU_TIME
 
-                if (opt_seq and finished_warmup)
+                if (opt_seq and finished_init and finished_warmup)
                 {
                     total_cycle_in_bcp_sq += 2;
                 }
@@ -647,7 +647,7 @@ CRef Solver::propagate()
             assert(&c == ca.lea(cr));
 #ifndef REAL_CPU_TIME
 
-            if (finished_warmup and opt_enable_acc)
+            if (finished_init and finished_warmup and opt_enable_acc)
                 this_wrap->add_clause_addr(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
 
                 //clause_access[(unsigned long long)ca.lea(cr)]++;
@@ -659,7 +659,7 @@ CRef Solver::propagate()
             i++;
 #ifndef REAL_CPU_TIME
 
-            if (opt_seq and finished_warmup)
+            if (opt_seq and finished_init and finished_warmup)
             {
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr], sjq::cache::read);
                 accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0], sjq::cache::read);
@@ -673,9 +673,9 @@ CRef Solver::propagate()
 
 #ifndef REAL_CPU_TIME
 
-            if (opt_seq and finished_warmup)
+            if (opt_seq and finished_init and finished_warmup)
                 total_cycle_in_bcp_sq += 2;
-            if (finished_warmup and opt_enable_acc)
+            if (finished_warmup and  finished_init and opt_enable_acc)
             {
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
@@ -689,7 +689,7 @@ CRef Solver::propagate()
             {
 #ifndef REAL_CPU_TIME
 
-                if (opt_seq and finished_warmup)
+                if (opt_seq and finished_init and finished_warmup)
                     total_cycle_in_bcp_sq += 2;
 #endif
 
@@ -702,12 +702,12 @@ CRef Solver::propagate()
             {
 #ifndef REAL_CPU_TIME
 
-                if (opt_seq and finished_warmup)
+                if (opt_seq and finished_init and finished_warmup)
                 {
                     accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])], sjq::cache::read);
                     accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k], sjq::cache::read);
                 }
-                if (finished_warmup and opt_enable_acc)
+                if (finished_warmup and finished_init and opt_enable_acc)
                 {
                     this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[k])]));
                     this_wrap->add_clause_literal(ii - 1, c[k]);
@@ -718,7 +718,7 @@ CRef Solver::propagate()
                 {
 #ifndef REAL_CPU_TIME
 
-                    if (opt_seq and finished_warmup)
+                    if (opt_seq and finished_init and finished_warmup)
                         accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]], sjq::cache::read);
 #endif
                     c[1] = c[k];
@@ -726,7 +726,7 @@ CRef Solver::propagate()
                     watches[~c[1]].push(w);
 #ifndef REAL_CPU_TIME
 
-                    if (finished_warmup and opt_enable_acc)
+                    if (finished_warmup and finished_init and opt_enable_acc)
                     {
                         this_wrap->add_pushed_list(ii - 1, int(~c[1]));
                         auto &pushed_watcher = watches[~c[1]];
@@ -745,7 +745,7 @@ CRef Solver::propagate()
             {
 #ifndef REAL_CPU_TIME
 
-                if (finished_warmup and opt_enable_acc)
+                if (finished_warmup and finished_init and opt_enable_acc)
                     this_wrap->set_generated_conf(ii - 1);
 #endif
 
@@ -755,7 +755,7 @@ CRef Solver::propagate()
                 // Copy the remaining watches:
 #ifndef REAL_CPU_TIME
 
-                if (finished_warmup and opt_enable_acc)
+                if (finished_warmup and finished_init and opt_enable_acc)
                     this_wrap->set_watcher_size(ii);
 #endif
 
@@ -768,7 +768,7 @@ CRef Solver::propagate()
                 // wrap size=10//that's a arbitrary value, cause we don't know it yet
 #ifndef REAL_CPU_TIME
 
-                if (finished_warmup and opt_enable_acc)
+                if (finished_warmup and finished_init and opt_enable_acc)
                 {
                     //watcher size should be 0 here, we might not access this any more.
                     auto new_wrap = awf.create(first, 0, ii - 1, this_wrap, this_wrap->get_level() + 1);
@@ -796,7 +796,7 @@ CRef Solver::propagate()
     //get_acc()->print_on(1);
 #ifndef REAL_CPU_TIME
 
-    if (finished_warmup and opt_enable_acc)
+    if (finished_init and finished_warmup and opt_enable_acc)
     {
         if (first_wrap != nullptr)
             for (auto &&mc : get_acc())
@@ -811,6 +811,7 @@ CRef Solver::propagate()
             {
                 get_acc()[i]->cycle();
                 get_acc()[i]->current_cycle++;
+                //std::cout<<get_acc()[i]->get_internal_size()<<std::endl;
             }
         }
         //clean the evironment
@@ -822,6 +823,26 @@ CRef Solver::propagate()
 
         if (total_prop % 10000 == 1)
         {
+            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
+            for (unsigned int i = 0; i < get_acc().size(); i++)
+            {
+                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+                std::cout << "total_prop: " << total_prop << std::endl;
+                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                end_size = ca.size();
+                std::cout << "total_clause_size: " << end_size << std::endl;
+                std::cout << "origin_clause_size: " << start_size << std::endl;
+                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+                //handle exit logic,
+            }
+        }
+        //std::cout<<opt_end_prop<<std::endl;
+        
+        if (total_prop >= opt_end_prop-1)
+        {
+            std::cout << "ending..." << std::endl;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < get_acc().size(); i++)
             {
