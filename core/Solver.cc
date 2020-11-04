@@ -546,7 +546,7 @@ CRef Solver::propagate()
 
 //std::map<int, int> generate_relation_map;
 #ifndef REAL_CPU_TIME
-    if (opt_seq and  finished_init and finished_warmup and total_prop % 10000 == 1)
+    if (opt_seq and finished_init and finished_warmup and total_prop % 10000 == 1)
     {
         std::cout << "total_prop " << total_prop << std::endl;
         std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
@@ -675,7 +675,7 @@ CRef Solver::propagate()
 
             if (opt_seq and finished_init and finished_warmup)
                 total_cycle_in_bcp_sq += 2;
-            if (finished_warmup and  finished_init and opt_enable_acc)
+            if (finished_warmup and finished_init and opt_enable_acc)
             {
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
@@ -839,8 +839,8 @@ CRef Solver::propagate()
             }
         }
         //std::cout<<opt_end_prop<<std::endl;
-        
-        if (total_prop >= opt_end_prop-1)
+
+        if (total_prop >= (unsigned long long)opt_end_prop - 1)
         {
             std::cout << "ending..." << std::endl;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
