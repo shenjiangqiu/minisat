@@ -30,6 +30,14 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <map>
 using namespace Minisat;
 #include "core/cache_wrap.h"
+#include <algorithm>           // std::for_each
+#include <boost/format.hpp>    // only needed for printing
+#include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
+#include <cassert>             // assert
+#include <functional>          // std::ref
+#include <iostream>            // std::cout, std::cout, std::flush
+#include <sstream>             // std::ostringstream
+
 //=================================================================================================
 // Options:
 #include <chrono>
@@ -538,8 +546,12 @@ void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *a
     }
 }
 assign_wrap_factory awf;
+using namespace boost::histogram;
+
 CRef Solver::propagate()
 {
+    static auto h = make_histogram(axis::regular<>(axis::step(1), 1, 400, "x"));
+
 //std::ofstream real("real.txt", std::ios_base::app);
 
 //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
@@ -569,8 +581,30 @@ CRef Solver::propagate()
     assign_wrap *first_wrap = nullptr;
 #endif
 
+#ifndef REAL_CPU_TIME
+
+    int last_level = qhead;
+    int next_level = qhead + 1;
+    assert(next_level == trail.size());
+#endif
+
     while (qhead < trail.size())
     {
+#ifndef REAL_CPU_TIME
+        //the algorithm to calculate the concurrent parallel watcher list, fist level is qhead to qhead+1,
+        //when meet next level, the q_head to trail.size() -1 will belong to this level
+        //so the next level is trail.size()
+        //so, the last level should be calculate if a conflict meet or the while loop ended.!!
+        if (qhead == next_level)
+        {
+            auto num_watcher_list = qhead - last_level;
+            h(num_watcher_list);
+
+            last_level = qhead;
+            next_level = trail.size();
+        }
+#endif
+
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
         //std::cout << "minisat::lit: " << p.x << std::endl;
         vec<Watcher> &ws = watches[p];
@@ -749,10 +783,16 @@ CRef Solver::propagate()
                 if (finished_warmup and finished_init and opt_enable_acc)
                     this_wrap->set_generated_conf(ii - 1);
 #endif
-
+#ifndef REAL_CPU_TIME
+                if (qhead - last_level + 1 > 0)
+                {
+                    h(qhead - last_level + 1);
+                }
+#endif
                 //get_acc()->set_ready();
                 confl = cr;
                 qhead = trail.size();
+
                 // Copy the remaining watches:
 #ifndef REAL_CPU_TIME
 
@@ -789,6 +829,15 @@ CRef Solver::propagate()
         }
         ws.shrink(i - j);
     } // end while (qhead < trail.size())
+#ifndef REAL_CPU_TIME
+    //normally end
+
+    if (confl == CRef_Undef)
+    {
+        h(qhead - last_level);
+    }
+
+#endif
     propagations += num_props;
     simpDB_props -= num_props;
 
@@ -796,6 +845,23 @@ CRef Solver::propagate()
     // now ready to sim
     //get_acc()->print_on(1);
 #ifndef REAL_CPU_TIME
+
+    if (total_prop % 10000 == 9999 or total_prop % 10000 == 0)
+    {
+        for (auto x : indexed(h, coverage::all))
+        {
+            std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
+                             x.bin().upper() % *x;
+        }
+    }
+    if (total_prop >= (unsigned long long)total_prop - 1)
+    {
+        for (auto x : indexed(h, coverage::all))
+        {
+            std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
+                             x.bin().upper() % *x;
+        }
+    }
 
     if (finished_init and finished_warmup and opt_enable_acc)
     {
