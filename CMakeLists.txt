@@ -9,7 +9,7 @@ find_package(Boost REQUIRED COMPONENTS serialization)
 find_package(ZLIB REQUIRED)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_STANDARD 17)
-
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 file(GLOB SOURCES core/*.cc)
 add_executable(minisat "${SOURCES}")
 target_link_libraries(minisat PUBLIC minisat_utiles satacc ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} )
