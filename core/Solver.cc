@@ -585,7 +585,8 @@ CRef Solver::propagate()
 
     int last_level = qhead;
     int next_level = qhead + 1;
-    assert(next_level == trail.size());
+    if (finished_init and finished_warmup)
+        assert(next_level == trail.size() or last_level == trail.size());
 #endif
 
     while (qhead < trail.size())
@@ -595,14 +596,15 @@ CRef Solver::propagate()
         //when meet next level, the q_head to trail.size() -1 will belong to this level
         //so the next level is trail.size()
         //so, the last level should be calculate if a conflict meet or the while loop ended.!!
-        if (qhead == next_level)
-        {
-            auto num_watcher_list = qhead - last_level;
-            h(num_watcher_list);
+        if (finished_init and finished_warmup)
+            if (qhead == next_level)
+            {
+                auto num_watcher_list = qhead - last_level;
+                h(num_watcher_list);
 
-            last_level = qhead;
-            next_level = trail.size();
-        }
+                last_level = qhead;
+                next_level = trail.size();
+            }
 #endif
 
         Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
@@ -784,7 +786,7 @@ CRef Solver::propagate()
                     this_wrap->set_generated_conf(ii - 1);
 #endif
 #ifndef REAL_CPU_TIME
-                if (qhead - last_level + 1 > 0)
+                if (qhead - last_level + 1 > 0 and finished_init and finished_warmup)
                 {
                     h(qhead - last_level + 1);
                 }
@@ -832,7 +834,7 @@ CRef Solver::propagate()
 #ifndef REAL_CPU_TIME
     //normally end
 
-    if (confl == CRef_Undef)
+    if (finished_init and finished_warmup and confl == CRef_Undef)
     {
         h(qhead - last_level);
     }
@@ -845,23 +847,27 @@ CRef Solver::propagate()
     // now ready to sim
     //get_acc()->print_on(1);
 #ifndef REAL_CPU_TIME
+    if (finished_init and finished_warmup)
+        if (total_prop % 10000 == 9999 or total_prop % 10000 == 0)
+        {
+            std::cout << "total_prop: " << total_prop << std::endl;
 
-    if (total_prop % 10000 == 9999 or total_prop % 10000 == 0)
-    {
-        for (auto x : indexed(h, coverage::all))
-        {
-            std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
-                             x.bin().upper() % *x;
+            for (auto &&x : indexed(h, coverage::all))
+            {
+                std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
+                                 x.bin().upper() % *x;
+            }
         }
-    }
-    if (total_prop >= (unsigned long long)total_prop - 1)
-    {
-        for (auto x : indexed(h, coverage::all))
+    if (finished_init and finished_warmup)
+        if (total_prop >= (unsigned long long)opt_end_prop - 1)
         {
-            std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
-                             x.bin().upper() % *x;
+            std::cout << "total_prop: " << total_prop << std::endl;
+            for (auto &&x : indexed(h, coverage::all))
+            {
+                std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
+                                 x.bin().upper() % *x;
+            }
         }
-    }
 
     if (finished_init and finished_warmup and opt_enable_acc)
     {
