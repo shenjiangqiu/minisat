@@ -21,4 +21,5 @@ endif()
 
 if(HISTO)
 target_compile_definitions(minisat PUBLIC HISTO)
+target_link_libraries(minisat PUBLIC boost_histogram)
 endif()

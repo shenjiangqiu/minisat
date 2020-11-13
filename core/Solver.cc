@@ -302,7 +302,7 @@ void Solver::analyze(CRef confl, vec<Lit> &out_learnt, int &out_btlevel)
         Clause &c = ca[confl];
 
         if (c.learnt())
-            claBumpActivity(c);
+            claBumpActivity(c);//??
 
         for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++)
         {
@@ -329,6 +329,7 @@ void Solver::analyze(CRef confl, vec<Lit> &out_learnt, int &out_btlevel)
 
     } while (pathC > 0);
     out_learnt[0] = ~p;
+
 
     // Simplify conflict clause:
     //
