@@ -21,6 +21,8 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <math.h>
 //#include <core/acc.h>
 //#include <core/assign_wrap.h>
+#include <boost/format.hpp>    // only needed for printing
+#include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
 
 #include "mtl/Sort.h"
 #include "core/Solver.h"
@@ -31,8 +33,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 using namespace Minisat;
 #include "core/cache_wrap.h"
 #include <algorithm>           // std::for_each
-#include <boost/format.hpp>    // only needed for printing
-#include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
+
 #include <cassert>             // assert
 #include <functional>          // std::ref
 #include <iostream>            // std::cout, std::cout, std::flush
