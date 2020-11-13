@@ -21,9 +21,10 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <math.h>
 //#include <core/acc.h>
 //#include <core/assign_wrap.h>
-#include <boost/format.hpp>    // only needed for printing
+#include <boost/format.hpp> // only needed for printing
+#ifdef HISTO
 #include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
-
+#endif
 #include "mtl/Sort.h"
 #include "core/Solver.h"
 #include "acc.h"
@@ -32,12 +33,12 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <map>
 using namespace Minisat;
 #include "core/cache_wrap.h"
-#include <algorithm>           // std::for_each
+#include <algorithm> // std::for_each
 
-#include <cassert>             // assert
-#include <functional>          // std::ref
-#include <iostream>            // std::cout, std::cout, std::flush
-#include <sstream>             // std::ostringstream
+#include <cassert>    // assert
+#include <functional> // std::ref
+#include <iostream>   // std::cout, std::cout, std::flush
+#include <sstream>    // std::ostringstream
 
 //=================================================================================================
 // Options:
@@ -547,12 +548,16 @@ void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *a
     }
 }
 assign_wrap_factory awf;
-using namespace boost::histogram;
+#ifdef HISTO
 
+using namespace boost::histogram;
+#endif
 CRef Solver::propagate()
 {
-    static auto h = make_histogram(axis::regular<>(axis::step(1), 1, 400, "x"));
+#ifdef HISTO
 
+    static auto h = make_histogram(axis::regular<>(axis::step(1), 1, 400, "x"));
+#endif
 //std::ofstream real("real.txt", std::ios_base::app);
 
 //SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
@@ -601,8 +606,10 @@ CRef Solver::propagate()
             if (qhead == next_level)
             {
                 auto num_watcher_list = qhead - last_level;
-                h(num_watcher_list);
+#ifdef HISTO
 
+                h(num_watcher_list);
+#endif
                 last_level = qhead;
                 next_level = trail.size();
             }
@@ -787,10 +794,13 @@ CRef Solver::propagate()
                     this_wrap->set_generated_conf(ii - 1);
 #endif
 #ifndef REAL_CPU_TIME
+#ifdef HISTO
+
                 if (qhead - last_level + 1 > 0 and finished_init and finished_warmup)
                 {
                     h(qhead - last_level + 1);
                 }
+#endif
 #endif
                 //get_acc()->set_ready();
                 confl = cr;
@@ -834,12 +844,13 @@ CRef Solver::propagate()
     } // end while (qhead < trail.size())
 #ifndef REAL_CPU_TIME
     //normally end
+#ifdef HISTO
 
     if (finished_init and finished_warmup and confl == CRef_Undef)
     {
         h(qhead - last_level);
     }
-
+#endif
 #endif
     propagations += num_props;
     simpDB_props -= num_props;
@@ -848,6 +859,8 @@ CRef Solver::propagate()
     // now ready to sim
     //get_acc()->print_on(1);
 #ifndef REAL_CPU_TIME
+#ifdef HISTO
+
     if (finished_init and finished_warmup)
         if (total_prop % 10000 == 9999 or total_prop % 10000 == 0)
         {
@@ -869,7 +882,7 @@ CRef Solver::propagate()
                                  x.bin().upper() % *x;
             }
         }
-
+#endif
     if (finished_init and finished_warmup and opt_enable_acc)
     {
         if (first_wrap != nullptr)
@@ -1348,7 +1361,6 @@ lbool Solver::solve_()
 //=================================================================================================
 // Writing CNF to DIMACS:
 //
-// FIXME: this needs to be rewritten completely.
 
 static Var mapVar(Var x, vec<Var> &map, Var &max)
 {
