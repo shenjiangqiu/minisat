@@ -302,7 +302,7 @@ void Solver::analyze(CRef confl, vec<Lit> &out_learnt, int &out_btlevel)
         Clause &c = ca[confl];
 
         if (c.learnt())
-            claBumpActivity(c);//??
+            claBumpActivity(c); //??
 
         for (int j = (p == lit_Undef) ? 0 : 1; j < c.size(); j++)
         {
@@ -329,7 +329,6 @@ void Solver::analyze(CRef confl, vec<Lit> &out_learnt, int &out_btlevel)
 
     } while (pathC > 0);
     out_learnt[0] = ~p;
-
 
     // Simplify conflict clause:
     //
@@ -694,9 +693,11 @@ CRef Solver::propagate()
 #ifndef REAL_CPU_TIME
 
             if (finished_init and finished_warmup and opt_enable_acc)
+            {
                 this_wrap->add_clause_addr(ii - 1, (unsigned long long)(&(c.data))); //currently we don't care about the address//no we need it!!!!
-
-                //clause_access[(unsigned long long)ca.lea(cr)]++;
+                this_wrap->set_clause_id(ii - 1, cr);
+            }
+            //clause_access[(unsigned long long)ca.lea(cr)]++;
 #endif
             Lit false_lit = ~p;
             if (c[0] == false_lit)
@@ -723,6 +724,7 @@ CRef Solver::propagate()
                 total_cycle_in_bcp_sq += 2;
             if (finished_warmup and finished_init and opt_enable_acc)
             {
+
                 //std::cout<<ii-1<<std::endl;
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[0])]));
                 this_wrap->add_detail(ii - 1, (unsigned long long)(&assigns[var(c[1])]));
