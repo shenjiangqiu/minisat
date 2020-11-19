@@ -901,8 +901,10 @@ CRef Solver::propagate()
             {
                 get_acc()[i]->cycle();
                 get_acc()[i]->current_cycle++;
-                //std::cout<<get_acc()[i]->get_internal_size()<<std::endl;
+                
             }
+            //flush
+            get_acc()[i]->flush_all();
         }
         //clean the evironment
         //maybe we need use unique_ptr?
@@ -1109,7 +1111,7 @@ lbool Solver::search(int nof_conflicts)
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
             std::cout << "current_prop " << total_prop << std::endl;
 #ifdef REAL_CPU_TIME
-            std::cout << "totoal_real_time: " << duration_cast<milliseconds>(total_time_in_bcp).count() << std::endl;
+            std::cout << "totoal_real_time: " << duration_cast<microseconds>(total_time_in_bcp).count() << std::endl;
 #endif
             exit(0);
             //handle exit logic,
