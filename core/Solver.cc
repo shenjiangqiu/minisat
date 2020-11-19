@@ -899,9 +899,13 @@ CRef Solver::propagate()
         {
             while (!get_acc()[i]->empty())
             {
+                bool enable_debug = false;
                 get_acc()[i]->cycle();
                 get_acc()[i]->current_cycle++;
-                
+                if (enable_debug)
+                {
+                    std::cout << get_acc()[i]->get_internal_size() << std::endl;
+                }
             }
             //flush
             get_acc()[i]->flush_all();
