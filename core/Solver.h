@@ -26,7 +26,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "mtl/Alg.h"
 #include "utils/Options.h"
 #include "core/SolverTypes.h"
-
+extern Minisat::Int64Option opt_end_prop;
 namespace Minisat
 {
 
@@ -52,6 +52,7 @@ namespace Minisat
         bool finished_warmup = false;
         int start_size = 0;
         int end_size = 0;
+        unsigned long long end_prop;
         bool operator==(const Solver &other)
         {
             if (total_prop == other.total_prop and
@@ -129,7 +130,7 @@ namespace Minisat
             }
         }
         template <class Archive>
-        void serialize(Archive &ar, const unsigned int )
+        void serialize(Archive &ar, const unsigned int)
         {
 
             //stack infomation
@@ -208,6 +209,7 @@ namespace Minisat
             ar &conflict_budget;
             ar &propagation_budget;
             ar &asynch_interrupt;
+            end_prop = opt_end_prop += propagations;
         }
 
         bool started = false;
@@ -326,7 +328,7 @@ namespace Minisat
                 }
             }
             template <class Archive>
-            void serialize(Archive &ar, const unsigned int )
+            void serialize(Archive &ar, const unsigned int)
             {
                 ar &reason;
                 ar &level;
@@ -338,7 +340,7 @@ namespace Minisat
         struct Watcher
         {
             template <class Archive>
-            void serialize(Archive &ar, const unsigned int )
+            void serialize(Archive &ar, const unsigned int)
             {
                 ar &cref;
                 ar &blocker;
