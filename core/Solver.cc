@@ -1121,6 +1121,7 @@ lbool Solver::search(int nof_conflicts)
         {
 
             end_size = ca.size();
+            std::cout<<"propagations: "<<propagations<<std::endl;
             std::cout << "total_clause_size: " << end_size << std::endl;
             std::cout << "origin_clause_size: " << start_size << std::endl;
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
