@@ -564,9 +564,9 @@ CRef Solver::propagate()
 
 //std::map<int, int> generate_relation_map;
 #ifndef REAL_CPU_TIME
-    if (opt_seq and finished_init and finished_warmup and total_prop % 10000 == 1)
+    if (opt_seq and finished_init and finished_warmup and propagations % 1000000 == 1)
     {
-        std::cout << "total_prop " << total_prop << std::endl;
+        std::cout << "propagations " << propagations << std::endl;
         std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
     }
 
@@ -856,6 +856,49 @@ CRef Solver::propagate()
 #endif
 #endif
     propagations += num_props;
+#ifndef REAL_CPU_TIME
+    if (opt_enable_acc and finished_init and finished_warmup)
+    {
+        if (propagations % 1000000 == 1)
+        {
+            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
+            for (unsigned int i = 0; i < get_acc().size(); i++)
+            {
+                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+                std::cout << "propagations: " << propagations << std::endl;
+                std::cout << "decisions: " << total_prop << std::endl;
+                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                end_size = ca.size();
+                std::cout << "total_clause_size: " << end_size << std::endl;
+                std::cout << "origin_clause_size: " << start_size << std::endl;
+                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+                //handle exit logic,
+            }
+        }
+        //std::cout<<opt_end_prop<<std::endl;
+
+        if (propagations >= (unsigned long long)opt_end_prop - 1)
+        {
+            std::cout << "ending..." << std::endl;
+            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
+            for (unsigned int i = 0; i < get_acc().size(); i++)
+            {
+                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
+                std::cout << "propagations: " << propagations << std::endl;
+                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                end_size = ca.size();
+                std::cout << "total_clause_size: " << end_size << std::endl;
+                std::cout << "origin_clause_size: " << start_size << std::endl;
+                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+                //handle exit logic,
+            }
+        }
+    }
+#endif
     simpDB_props -= num_props;
 
     //SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
@@ -865,9 +908,9 @@ CRef Solver::propagate()
 #ifdef HISTO
 
     if (finished_init and finished_warmup)
-        if (total_prop % 10000 == 9999 or total_prop % 10000 == 0)
+        if (propagations % 1000000 == 9999 or propagations % 1000000 == 0)
         {
-            std::cout << "total_prop: " << total_prop << std::endl;
+            std::cout << "propagations: " << propagations << std::endl;
 
             for (auto &&x : indexed(h, coverage::all))
             {
@@ -876,9 +919,9 @@ CRef Solver::propagate()
             }
         }
     if (finished_init and finished_warmup)
-        if (total_prop >= (unsigned long long)opt_end_prop - 1)
+        if (propagations >= (unsigned long long)opt_end_prop - 1)
         {
-            std::cout << "total_prop: " << total_prop << std::endl;
+            std::cout << "propagations: " << propagations << std::endl;
             for (auto &&x : indexed(h, coverage::all))
             {
                 std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() % x.bin().lower() %
@@ -894,7 +937,7 @@ CRef Solver::propagate()
                 mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
             }
         //std::vector<int> this_cycle;
-        //std::cout<<"start!"<<total_prop<<std::endl;
+        //std::cout<<"start!"<<propagations<<std::endl;
         for (unsigned int i = 0; i < get_acc().size(); i++)
         {
             while (!get_acc()[i]->empty())
@@ -916,49 +959,10 @@ CRef Solver::propagate()
         {
             delete value.second;
         }
-
-        if (total_prop % 10000 == 1)
-        {
-            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
-            for (unsigned int i = 0; i < get_acc().size(); i++)
-            {
-                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-                std::cout << "total_prop: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                std::cout << get_acc()[i]->get_line_trace() << std::endl;
-                end_size = ca.size();
-                std::cout << "total_clause_size: " << end_size << std::endl;
-                std::cout << "origin_clause_size: " << start_size << std::endl;
-                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-                //handle exit logic,
-            }
-        }
-        //std::cout<<opt_end_prop<<std::endl;
-
-        if (total_prop >= (unsigned long long)opt_end_prop - 1)
-        {
-            std::cout << "ending..." << std::endl;
-            //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
-            for (unsigned int i = 0; i < get_acc().size(); i++)
-            {
-                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-                std::cout << "total_prop: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                std::cout << get_acc()[i]->get_line_trace() << std::endl;
-                end_size = ca.size();
-                std::cout << "total_clause_size: " << end_size << std::endl;
-                std::cout << "origin_clause_size: " << start_size << std::endl;
-                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-                //handle exit logic,
-            }
-        }
-        //if (total_prop >= 3000000)
     }
 #endif
 
-    //std::cout << "total_prop:" << total_prop << std::endl;
+    //std::cout << "propagations:" << propagations << std::endl;
 
     return confl;
 }
@@ -1093,7 +1097,7 @@ lbool Solver::search(int nof_conflicts)
     {
         if (opt_save)
         {
-            if (total_prop >= (unsigned long long)opt_checkpoint_prop)
+            if (propagations >= (unsigned long long)opt_checkpoint_prop)
             {
                 { //save to file now;
                     std::ofstream ofs(opt_checkpoint_name);
@@ -1105,7 +1109,7 @@ lbool Solver::search(int nof_conflicts)
             }
         }
 
-        if (opt_end_prop > 0 and total_prop >= (unsigned long long)opt_end_prop)
+        if (opt_end_prop > 0 and propagations >= (unsigned long long)opt_end_prop)
         {
 
             end_size = ca.size();
@@ -1113,7 +1117,7 @@ lbool Solver::search(int nof_conflicts)
             std::cout << "origin_clause_size: " << start_size << std::endl;
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-            std::cout << "current_prop " << total_prop << std::endl;
+            std::cout << "current_prop " << propagations << std::endl;
 #ifdef REAL_CPU_TIME
             std::cout << "totoal_real_time: " << duration_cast<microseconds>(total_time_in_bcp).count() << std::endl;
 #endif
@@ -1122,9 +1126,9 @@ lbool Solver::search(int nof_conflicts)
         }
 #ifdef REAL_CPU_TIME
 
-        if (total_prop % 10000 == 10 or total_prop % 10000 == 0)
+        if (propagations % 1000000 == 10 or propagations % 1000000 == 0)
         {
-            std::cout << "ENABLE_REAL_total_prop: " << total_prop << std::endl;
+            std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
             std::cout << "total_time_in_bcp: " << duration_cast<milliseconds>(total_time_in_bcp).count() << std::endl;
         }
 #endif
