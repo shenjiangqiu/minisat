@@ -27,12 +27,15 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #endif
 #include "mtl/Sort.h"
 #include "core/Solver.h"
+#ifndef REAL_CPU_TIME
 #include "acc.h"
+#include "core/cache_wrap.h"
+
+#endif
 #include "core/read_config.h"
 #include <fstream>
 #include <map>
 using namespace Minisat;
-#include "core/cache_wrap.h"
 #include <algorithm> // std::for_each
 
 #include <cassert>    // assert
@@ -494,6 +497,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 |      * the propagation queue is empty, even if there was a conflict.
 |________________________________________________________________________________________________@*/
 using value_type = int;
+#ifndef REAL_CPU_TIME
 std::vector<acc *> m_accs;
 std::vector<uint64_t> current_cycle_s;
 auto &get_acc()
@@ -548,6 +552,8 @@ void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *a
     }
 }
 assign_wrap_factory awf;
+#endif
+
 #ifdef HISTO
 
 using namespace boost::histogram;

@@ -22,7 +22,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <iostream>
 #include <signal.h>
 #include <zlib.h>
-#include <icnt_wrapper.h>
+//#include <icnt_wrapper.h>
 #include "utils/System.h"
 #include "utils/ParseUtils.h"
 #include "utils/Options.h"
