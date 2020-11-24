@@ -65,7 +65,7 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 static BoolOption opt_enable_acc("sjq", "enable-acc", "weather enable simulation(for acc only)", false);
 
 static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup", 0);
-static Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
+ Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
 BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
 BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
 Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
@@ -879,7 +879,7 @@ CRef Solver::propagate()
         }
         //std::cout<<opt_end_prop<<std::endl;
 
-        if (propagations >= (unsigned long long)opt_end_prop - 1)
+        if (propagations >= (unsigned long long)end_prop - 1)
         {
             std::cout << "ending..." << std::endl;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
@@ -887,6 +887,7 @@ CRef Solver::propagate()
             {
                 std::cout << "\n\nprint the " << i << " th acc" << std::endl;
                 std::cout << "propagations: " << propagations << std::endl;
+                std::cout << "decisions: " << total_prop << std::endl;
                 std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
                 std::cout << get_acc()[i]->get_line_trace() << std::endl;
                 end_size = ca.size();
@@ -919,7 +920,7 @@ CRef Solver::propagate()
             }
         }
     if (finished_init and finished_warmup)
-        if (propagations >= (unsigned long long)opt_end_prop - 1)
+        if (propagations >= (unsigned long long)end_prop - 1)
         {
             std::cout << "propagations: " << propagations << std::endl;
             for (auto &&x : indexed(h, coverage::all))
@@ -1074,7 +1075,8 @@ bool Solver::simplify()
 lbool Solver::search(int nof_conflicts)
 {
     static nanoseconds total_time_in_bcp(0);
-
+    std::cout<<propagations<<std::endl;
+    std::cout<<end_prop<<std::endl;
     assert(ok);
     static bool first_in = true;
     if (!opt_load)
@@ -1109,7 +1111,7 @@ lbool Solver::search(int nof_conflicts)
             }
         }
 
-        if (opt_end_prop > 0 and propagations >= (unsigned long long)opt_end_prop)
+        if (end_prop > 0 and propagations >= (unsigned long long)end_prop)
         {
 
             end_size = ca.size();
