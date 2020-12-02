@@ -30,11 +30,12 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #ifndef REAL_CPU_TIME
 #include "acc.h"
 #include "core/cache_wrap.h"
-
+#include <seq.h>
 #endif
 #include "core/read_config.h"
 #include <fstream>
 #include <map>
+
 using namespace Minisat;
 #include <algorithm> // std::for_each
 
@@ -46,6 +47,7 @@ using namespace Minisat;
 //=================================================================================================
 // Options:
 #include <chrono>
+
 using namespace std::chrono;
 static const char *_cat = "CORE";
 
@@ -68,12 +70,13 @@ static DoubleOption opt_garbage_frac(_cat, "gc-frac", "The fraction of wasted me
 static BoolOption opt_enable_acc("sjq", "enable-acc", "weather enable simulation(for acc only)", false);
 
 static Int64Option opt_warmup_prop("sjq", "warmup-prop", "props to warmup", 0);
- Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
+Int64Option opt_end_prop("sjq", "end-prop", "props to end", 0);
 BoolOption opt_save("sjq", "save", "weather save the checkpoint", false);
 BoolOption opt_load("sjq", "load", "weather load the checkpoint", false);
 Int64Option opt_checkpoint_prop("sjq", "checkpoint-prop", "when to save checkpoint");
 StringOption opt_checkpoint_name("sjq", "checkpoint-name", "the name of checkpoint");
 BoolOption opt_seq("sjq", "seq", "weather get sequential time", false);
+BoolOption opt_seq_acc("sjq", "seqacc", "weather get sequential time", false);
 
 // end sjq options
 
@@ -502,6 +505,10 @@ std::vector<acc *> m_accs;
 std::vector<uint64_t> current_cycle_s;
 auto &get_acc()
 {
+    if (opt_seq_acc)
+    {
+        return m_accs;
+    }
     if (!m_accs.empty())
     {
         return m_accs;
@@ -522,7 +529,17 @@ auto &get_acc()
     }
 }
 CacheWrap m_cache_wrap;
-
+uint64_t seq_cycle = 0; //not used, only for compatibility
+seq_pipeline *m_seq_pipeline = nullptr;
+uint64_t total_seq_cycle = 0; //use this cycle;
+auto get_seq_pipeline()
+{
+    if (!m_seq_pipeline)
+    {
+        m_seq_pipeline = new seq_pipeline(16 << 20, "HBM-config.cfg", seq_cycle);
+    }
+    return m_seq_pipeline;
+}
 unsigned long long total_cycle_in_bcp_sq = 0;
 
 void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache, void *addr, sjq::cache::access_type type)
@@ -611,8 +628,8 @@ CRef Solver::propagate()
         if (finished_init and finished_warmup)
             if (qhead == next_level)
             {
-                auto num_watcher_list = qhead - last_level;
 #ifdef HISTO
+                auto num_watcher_list = qhead - last_level;
 
                 h(num_watcher_list);
 #endif
@@ -787,6 +804,7 @@ CRef Solver::propagate()
                         auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
 
                         this_wrap->add_pushed_addr(ii - 1, (unsigned long long)&last_location);
+                        this_wrap->set_other_watcher_list_meta_data(ii - 1, (uint64_t)&pushed_watcher);
                     }
 #endif
 
@@ -833,6 +851,7 @@ CRef Solver::propagate()
 
                 if (finished_warmup and finished_init and opt_enable_acc)
                 {
+                    //std::cout << fmt::format("in solver,{} generate {}\n", this_wrap->get_value(), first);
                     //watcher size should be 0 here, we might not access this any more.
                     auto new_wrap = awf.create(first, 0, ii - 1, this_wrap, this_wrap->get_level() + 1);
                     //init the block addr value, to avent segment fault
@@ -862,19 +881,32 @@ CRef Solver::propagate()
 #endif
 #endif
     propagations += num_props;
+
 #ifndef REAL_CPU_TIME
+    static uint64_t next_print = 0;
     if (opt_enable_acc and finished_init and finished_warmup)
     {
-        if (propagations % 1000000 == 1)
+        if (propagations > next_print)
         {
+            next_print += 1000000;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
             for (unsigned int i = 0; i < get_acc().size(); i++)
             {
                 std::cout << "\n\nprint the " << i << " th acc" << std::endl;
                 std::cout << "propagations: " << propagations << std::endl;
                 std::cout << "decisions: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                std::cout << get_acc()[i]->get_line_trace() << std::endl;
+
+                if (opt_seq_acc)
+                {
+                    std::cout << "total_cycle: " << total_seq_cycle << std::endl;
+                    //std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                }
+                else
+                {
+                    std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
+                    std::cout << get_acc()[i]->get_line_trace() << std::endl;
+                }
+
                 end_size = ca.size();
                 std::cout << "total_clause_size: " << end_size << std::endl;
                 std::cout << "origin_clause_size: " << start_size << std::endl;
@@ -938,30 +970,41 @@ CRef Solver::propagate()
 #endif
     if (finished_init and finished_warmup and opt_enable_acc)
     {
-        if (first_wrap != nullptr)
-            for (auto &&mc : get_acc())
-            {
-                mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
-            }
-        //std::vector<int> this_cycle;
-        //std::cout<<"start!"<<propagations<<std::endl;
-        for (unsigned int i = 0; i < get_acc().size(); i++)
+        if (opt_seq_acc and first_wrap != nullptr)
         {
-            while (!get_acc()[i]->empty())
+            get_seq_pipeline()->push(std::make_unique<cache_interface_req>(AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
+            total_seq_cycle += get_seq_pipeline()->get();
+        }
+        else
+        {
+            if (first_wrap != nullptr)
             {
-                bool enable_debug = false;
-                get_acc()[i]->cycle();
-                get_acc()[i]->current_cycle++;
-                if (enable_debug)
+                for (auto &&mc : get_acc())
                 {
-                    std::cout << get_acc()[i]->get_internal_size() << std::endl;
+                    mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
+                }
+                //std::vector<int> this_cycle;
+                //std::cout<<"start!"<<propagations<<std::endl;
+                for (unsigned int i = 0; i < get_acc().size(); i++)
+                {
+
+                    while (!get_acc()[i]->empty())
+                    {
+                        bool enable_debug = false;
+                        get_acc()[i]->cycle();
+                        get_acc()[i]->current_cycle++;
+                        if (enable_debug)
+                        {
+                            std::cout << get_acc()[i]->get_internal_size() << std::endl;
+                        }
+                    }
+                    //flush
+                    get_acc()[i]->flush_all();
                 }
             }
-            //flush
-            get_acc()[i]->flush_all();
+            //clean the evironment
+            //maybe we need use unique_ptr?
         }
-        //clean the evironment
-        //maybe we need use unique_ptr?
         for (auto value : lit_to_wrap)
         {
             delete value.second;
@@ -1081,8 +1124,8 @@ bool Solver::simplify()
 lbool Solver::search(int nof_conflicts)
 {
     static nanoseconds total_time_in_bcp(0);
-    std::cout<<propagations<<std::endl;
-    std::cout<<end_prop<<std::endl;
+    std::cout << propagations << std::endl;
+    std::cout << end_prop << std::endl;
     assert(ok);
     static bool first_in = true;
     if (!opt_load)
@@ -1121,7 +1164,7 @@ lbool Solver::search(int nof_conflicts)
         {
 
             end_size = ca.size();
-            std::cout<<"propagations: "<<propagations<<std::endl;
+            std::cout << "propagations: " << propagations << std::endl;
             std::cout << "total_clause_size: " << end_size << std::endl;
             std::cout << "origin_clause_size: " << start_size << std::endl;
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;

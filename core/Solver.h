@@ -209,7 +209,7 @@ namespace Minisat
             ar &conflict_budget;
             ar &propagation_budget;
             ar &asynch_interrupt;
-            end_prop = opt_end_prop += propagations;
+            end_prop = opt_end_prop + propagations;
         }
 
         bool started = false;
