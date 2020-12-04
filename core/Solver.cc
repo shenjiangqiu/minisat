@@ -79,6 +79,7 @@ BoolOption opt_seq("sjq", "seq", "weather get sequential time", false);
 BoolOption opt_seq_acc("sjq", "seqacc", "weather get sequential time", false);
 
 // end sjq options
+uint64_t next_print = 0;
 
 Solver::Solver() :
 
@@ -575,8 +576,31 @@ assign_wrap_factory awf;
 
 using namespace boost::histogram;
 #endif
+
+std::vector<unsigned long long> total_prop_array;
+std::vector<unsigned long long> total_clause_num_array;
+std::vector<unsigned long long> total_watcher_array;
+
+unsigned long long this_prop = 0;
+unsigned long long this_clause = 0;
+unsigned long long this_watcher = 0;
+
+unsigned current_prop_round = 0;
+
 CRef Solver::propagate()
 {
+
+    if (current_prop_round++ >= 1000)
+    {
+        current_prop_round = 0;
+        total_prop_array.push_back(this_prop);
+        total_clause_num_array.push_back(this_clause);
+        total_watcher_array.push_back(this_watcher);
+        this_prop = 0;
+        this_clause = 0;
+        this_watcher = 0;
+    }
+
 #ifdef HISTO
 
     static auto h = make_histogram(axis::regular<>(axis::step(1), 1, 400, "x"));
@@ -620,6 +644,8 @@ CRef Solver::propagate()
 
     while (qhead < trail.size())
     {
+
+        this_prop++;
 #ifndef REAL_CPU_TIME
         //the algorithm to calculate the concurrent parallel watcher list, fist level is qhead to qhead+1,
         //when meet next level, the q_head to trail.size() -1 will belong to this level
@@ -675,6 +701,7 @@ CRef Solver::propagate()
         int ii = 0;
         for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;)
         {
+            this_watcher++;
 
             ii++;
             // Try to avoid inspecting the clause:
@@ -713,6 +740,7 @@ CRef Solver::propagate()
             CRef cr = i->cref;
             Clause &c = ca[cr];
             assert(&c == ca.lea(cr));
+            this_clause++;
 #ifndef REAL_CPU_TIME
 
             if (finished_init and finished_warmup and opt_enable_acc)
@@ -883,7 +911,6 @@ CRef Solver::propagate()
     propagations += num_props;
 
 #ifndef REAL_CPU_TIME
-    static uint64_t next_print = 0;
     if (opt_enable_acc and finished_init and finished_warmup)
     {
         if (propagations > next_print)
@@ -1315,6 +1342,23 @@ lbool Solver::search(int nof_conflicts)
             newDecisionLevel();
             uncheckedEnqueue(next);
         }
+    }
+
+    //end search
+    std::ofstream out_prop("prop.out");
+    std::ofstream out_clause("clause.out");
+    std::ofstream out_watcher("watcher.out");
+    for (auto i : total_prop_array)
+    {
+        out_prop << i << "\n";
+    };
+    for (auto i : total_clause_num_array)
+    {
+        out_clause << i << "\n";
+    }
+    for (auto i : total_watcher_array)
+    {
+        out_watcher << i << "\n";
     }
 }
 

@@ -22,13 +22,14 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <iostream>
 #include <signal.h>
 #include <zlib.h>
+#include <fstream>
+#include <vector>
 //#include <icnt_wrapper.h>
 #include "utils/System.h"
 #include "utils/ParseUtils.h"
 #include "utils/Options.h"
 #include "core/Dimacs.h"
 #include "core/Solver.h"
-
 
 namespace logging = boost::log;
 
@@ -60,6 +61,11 @@ static Solver *solver;
 // Note that '_exit()' rather than 'exit()' has to be used. The reason is that 'exit()' calls
 // destructors and may cause deadlocks if a malloc/free function happens to be running (these
 // functions are guarded by locks for multithreaded use).
+
+extern std::vector<unsigned long long> total_prop_array;
+extern std::vector<unsigned long long> total_clause_num_array;
+extern std::vector<unsigned long long> total_watcher_array;
+
 static void SIGINT_exit(int)
 {
     printf("\n");
@@ -69,6 +75,22 @@ static void SIGINT_exit(int)
         printStats(*solver);
         printf("\n");
         printf("*** INTERRUPTED ***\n");
+    }
+
+    std::ofstream out_prop("prop.out");
+    std::ofstream out_clause("clause.out");
+    std::ofstream out_watcher("watcher.out");
+    for (auto i : total_prop_array)
+    {
+        out_prop << i << "\n";
+    };
+    for (auto i : total_clause_num_array)
+    {
+        out_clause << i << "\n";
+    }
+    for (auto i : total_watcher_array)
+    {
+        out_watcher << i << "\n";
     }
     _exit(1);
 }
