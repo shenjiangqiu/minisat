@@ -890,30 +890,28 @@ CRef Solver::propagate()
         {
             next_print += 1000000;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
-            for (unsigned int i = 0; i < get_acc().size(); i++)
+
+            std::cout << "\n\nprint the " << 0 << " th acc" << std::endl;
+            std::cout << "propagations: " << propagations << std::endl;
+            std::cout << "decisions: " << total_prop << std::endl;
+
+            if (opt_seq_acc)
             {
-                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-                std::cout << "propagations: " << propagations << std::endl;
-                std::cout << "decisions: " << total_prop << std::endl;
-
-                if (opt_seq_acc)
-                {
-                    std::cout << "total_cycle: " << total_seq_cycle << std::endl;
-                    //std::cout << get_acc()[i]->get_line_trace() << std::endl;
-                }
-                else
-                {
-                    std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                    std::cout << get_acc()[i]->get_line_trace() << std::endl;
-                }
-
-                end_size = ca.size();
-                std::cout << "total_clause_size: " << end_size << std::endl;
-                std::cout << "origin_clause_size: " << start_size << std::endl;
-                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-                //handle exit logic,
+                std::cout << "total_cycle: " << total_seq_cycle << std::endl;
+                //std::cout << get_acc()[i]->get_line_trace() << std::endl;
             }
+            else
+            {
+                std::cout << "total_cycle: " << get_acc()[0]->current_cycle << std::endl;
+                std::cout << get_acc()[0]->get_line_trace() << std::endl;
+            }
+
+            end_size = ca.size();
+            std::cout << "total_clause_size: " << end_size << std::endl;
+            std::cout << "origin_clause_size: " << start_size << std::endl;
+            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            //handle exit logic,
         }
         //std::cout<<opt_end_prop<<std::endl;
 
@@ -921,20 +919,26 @@ CRef Solver::propagate()
         {
             std::cout << "ending..." << std::endl;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
-            for (unsigned int i = 0; i < get_acc().size(); i++)
+
+            std::cout << "\n\nprint the " << 0 << " th acc" << std::endl;
+            std::cout << "propagations: " << propagations << std::endl;
+            std::cout << "decisions: " << total_prop << std::endl;
+            if (opt_seq_acc)
             {
-                std::cout << "\n\nprint the " << i << " th acc" << std::endl;
-                std::cout << "propagations: " << propagations << std::endl;
-                std::cout << "decisions: " << total_prop << std::endl;
-                std::cout << "total_cycle: " << get_acc()[i]->current_cycle << std::endl;
-                std::cout << get_acc()[i]->get_line_trace() << std::endl;
-                end_size = ca.size();
-                std::cout << "total_clause_size: " << end_size << std::endl;
-                std::cout << "origin_clause_size: " << start_size << std::endl;
-                std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-                std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-                //handle exit logic,
+                std::cout << "total_cycle: " << total_seq_cycle << std::endl;
+                //std::cout << get_acc()[i]->get_line_trace() << std::endl;
             }
+            else
+            {
+                std::cout << "total_cycle: " << get_acc()[0]->current_cycle << std::endl;
+                std::cout << get_acc()[0]->get_line_trace() << std::endl;
+            }
+            end_size = ca.size();
+            std::cout << "total_clause_size: " << end_size << std::endl;
+            std::cout << "origin_clause_size: " << start_size << std::endl;
+            std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+            std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+            //handle exit logic,
         }
     }
 #endif
