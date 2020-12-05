@@ -62,10 +62,6 @@ static Solver *solver;
 // destructors and may cause deadlocks if a malloc/free function happens to be running (these
 // functions are guarded by locks for multithreaded use).
 
-extern std::vector<unsigned long long> total_prop_array;
-extern std::vector<unsigned long long> total_clause_num_array;
-extern std::vector<unsigned long long> total_watcher_array;
-
 static void SIGINT_exit(int)
 {
     printf("\n");
@@ -77,21 +73,6 @@ static void SIGINT_exit(int)
         printf("*** INTERRUPTED ***\n");
     }
 
-    std::ofstream out_prop("prop.out");
-    std::ofstream out_clause("clause.out");
-    std::ofstream out_watcher("watcher.out");
-    for (auto i : total_prop_array)
-    {
-        out_prop << i << "\n";
-    };
-    for (auto i : total_clause_num_array)
-    {
-        out_clause << i << "\n";
-    }
-    for (auto i : total_watcher_array)
-    {
-        out_watcher << i << "\n";
-    }
     _exit(1);
 }
 

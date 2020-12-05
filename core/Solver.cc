@@ -577,28 +577,30 @@ assign_wrap_factory awf;
 using namespace boost::histogram;
 #endif
 
-std::vector<unsigned long long> total_prop_array;
-std::vector<unsigned long long> total_clause_num_array;
-std::vector<unsigned long long> total_watcher_array;
-
 unsigned long long this_prop = 0;
 unsigned long long this_clause = 0;
 unsigned long long this_watcher = 0;
 
 unsigned current_prop_round = 0;
-
+std::ofstream out_prop("prop.out");
+std::ofstream out_clause("clause.out");
+std::ofstream out_watcher("watcher.out");
 CRef Solver::propagate()
 {
 
     if (current_prop_round++ >= 1000)
     {
         current_prop_round = 0;
-        total_prop_array.push_back(this_prop);
-        total_clause_num_array.push_back(this_clause);
-        total_watcher_array.push_back(this_watcher);
+        out_prop << this_prop << "\n";
+        out_clause << this_clause << "\n";
+        out_watcher << this_watcher << "\n";
         this_prop = 0;
         this_clause = 0;
         this_watcher = 0;
+        out_prop.flush();
+        out_clause.flush();
+        out_watcher.flush();
+        //end search
     }
 
 #ifdef HISTO
@@ -1289,6 +1291,7 @@ lbool Solver::search(int nof_conflicts)
         else
         {
             // NO CONFLICT
+            /*
             if ((nof_conflicts >= 0 && curr_conflictC >= nof_conflicts) || !withinBudget())
             {
                 // Reached bound on number of conflicts:
@@ -1296,6 +1299,7 @@ lbool Solver::search(int nof_conflicts)
                 cancelUntil(0);
                 return l_Undef;
             }
+            */
 
             // Simplify the set of problem clauses:
             if (decisionLevel() == 0 && !simplify())
@@ -1342,23 +1346,6 @@ lbool Solver::search(int nof_conflicts)
             newDecisionLevel();
             uncheckedEnqueue(next);
         }
-    }
-
-    //end search
-    std::ofstream out_prop("prop.out");
-    std::ofstream out_clause("clause.out");
-    std::ofstream out_watcher("watcher.out");
-    for (auto i : total_prop_array)
-    {
-        out_prop << i << "\n";
-    };
-    for (auto i : total_clause_num_array)
-    {
-        out_clause << i << "\n";
-    }
-    for (auto i : total_watcher_array)
-    {
-        out_watcher << i << "\n";
     }
 }
 
