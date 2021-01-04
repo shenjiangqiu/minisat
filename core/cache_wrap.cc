@@ -3,7 +3,7 @@
 #include <sjqcache.h>
 std::pair<CacheWrap::status, CacheWrap::hit_where> CacheWrap::access(unsigned long long addr, sjq::cache::access_type type)
 {
-    auto l1_result = l1cache.access(addr, type);
+    auto l1_result = l1cache.access(addr, type, 0);
     if (l1_result == sjq::cache::hit)
     {
         return std::make_pair(hit, L1);
@@ -15,7 +15,7 @@ std::pair<CacheWrap::status, CacheWrap::hit_where> CacheWrap::access(unsigned lo
     else
     {
         l1cache.fill(addr);
-        auto l2_result = l2cache.access(addr, type);
+        auto l2_result = l2cache.access(addr, type, 0);
         if (l2_result == sjq::cache::hit)
         {
             return std::make_pair(hit, L2);
@@ -27,7 +27,7 @@ std::pair<CacheWrap::status, CacheWrap::hit_where> CacheWrap::access(unsigned lo
         else
         {
             l2cache.fill(addr);
-            auto l3_result = l3cache.access(addr, type);
+            auto l3_result = l3cache.access(addr, type, 0);
             if (l3_result == sjq::cache::hit)
             {
                 return std::make_pair(hit, L3);
