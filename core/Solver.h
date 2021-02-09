@@ -145,6 +145,7 @@ namespace Minisat
 
             ar &start_size;
             ar &end_size;
+            //currently the number of decisions
             ar &total_prop;
             ar &total_warmup;
             ar &finished_init;
@@ -211,8 +212,9 @@ namespace Minisat
             ar &conflict_budget;
             ar &propagation_budget;
             ar &asynch_interrupt;
-            end_prop = opt_end_prop + propagations;
+            end_prop = opt_end_prop;
             next_print = propagations;
+            first_prop=propagations;
         }
 
         bool started = false;
@@ -315,7 +317,7 @@ namespace Minisat
 
         // Statistics: (read-only member variable)
         //
-        uint64_t solves, starts, decisions, rnd_decisions, propagations, conflicts;
+        uint64_t solves, starts, decisions, rnd_decisions, first_prop,propagations, conflicts;
         uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
         struct VarData
         {

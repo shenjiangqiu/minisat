@@ -879,7 +879,8 @@ CRef Solver::propagate() {
         }
         //std::cout<<opt_end_prop<<std::endl;
 
-        if (propagations >= (unsigned long long) end_prop - 1) {
+        if (total_prop >= (unsigned long long) end_prop - 1) {
+            std::cout<<"start_prop: "<<first_prop<<std::endl;
             std::cout << "ending..." << std::endl;
             //std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) { std::cout << *p_acc << std::endl; });
 
@@ -899,6 +900,7 @@ CRef Solver::propagate() {
             std::cout << "origin_clause_num: " << clauses.size() << std::endl;
             std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
             //handle exit logic,
+            exit(0);
         }
     }
 #endif
@@ -1103,7 +1105,7 @@ lbool Solver::search(int nof_conflicts) {
                 exit(0);
             }
         }
-
+/* 
         if (end_prop > 0 and propagations >= (unsigned long long) end_prop) {
 
             end_size = ca.size();
@@ -1118,7 +1120,7 @@ lbool Solver::search(int nof_conflicts) {
 #endif
             exit(0);
             //handle exit logic,
-        }
+        } */
 #ifdef REAL_CPU_TIME
 
         if (propagations % 1000000 == 10 or propagations % 1000000 == 0)
