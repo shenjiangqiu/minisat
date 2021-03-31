@@ -47,13 +47,15 @@ namespace Minisat
         int curr_backtrack_level;
         int curr_conflictC = 0;
         vec<Lit> curr_learnt_clause;
-
+        //number of decisions
         unsigned long long total_prop = 0;
         unsigned long long total_warmup = 0;
         bool finished_init = false;
         bool finished_warmup = false;
         int start_size = 0;
         int end_size = 0;
+        //the simulation halt decision number, when this->prop>end_prop, it will halt. note: end_prop will be a absolute number,
+        //when using checkpoint, remember to add the original start prop.
         unsigned long long end_prop = 0;
         bool operator==(const Solver &other)
         {
@@ -317,7 +319,7 @@ namespace Minisat
 
         // Statistics: (read-only member variable)
         //
-        uint64_t solves, starts, decisions, rnd_decisions, first_prop,propagations, conflicts;
+        uint64_t solves, starts, decisions, rnd_decisions, first_prop,/*number of propagations*/propagations, conflicts;
         uint64_t dec_vars, clauses_literals, learnts_literals, max_literals, tot_literals;
         struct VarData
         {
