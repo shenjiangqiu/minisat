@@ -1,5 +1,5 @@
 #define CATCH_CONFIG_MAIN
-#include "catch.hpp"
+#include <Catch2/catch.hpp>
 #include "assign_wrap.h"
 #include "acc.h"
 //#include "event_queue.h"

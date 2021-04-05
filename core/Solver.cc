@@ -1142,8 +1142,11 @@ clauseset is found. If |    all variables are decision variables, this means
 that the clause set is satisfiable. 'l_False' |    if the clause set is
 unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
-lbool Solver::search(int nof_conflicts) {
+lbool Solver::search(int) {
+#ifdef REAL_CPU_TIME
+
   static nanoseconds total_time_in_bcp(0);
+#endif
   std::cout << propagations << std::endl;
   std::cout << end_prop << std::endl;
   assert(ok);
