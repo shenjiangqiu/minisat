@@ -1173,7 +1173,9 @@ lbool Solver::search(int) {
           std::cout << "save the checkpoint to file " << opt_checkpoint_name
                     << std::endl;
         }
+        #ifndef REAL_CPU_TIME
         delete_acc();
+        #endif
 
         exit(0);
       }
