@@ -1198,7 +1198,7 @@ duration_cast<microseconds>(total_time_in_bcp).count() << std::endl; #endif
         } */
 #ifdef REAL_CPU_TIME
 
-    if (propagations % 1000000 == 10 or propagations % 1000000 == 0) {
+    if (total_prop % 10000 == 0) {
       std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
       std::cout << "total_time_in_bcp: "
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
@@ -1210,6 +1210,8 @@ duration_cast<microseconds>(total_time_in_bcp).count() << std::endl; #endif
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
                 << std::endl;
       std::cout << total_prop << std::endl;
+      std::cout.flush();
+      throw "finished simulation";
     }
 #endif
 
