@@ -1173,9 +1173,9 @@ lbool Solver::search(int) {
           std::cout << "save the checkpoint to file " << opt_checkpoint_name
                     << std::endl;
         }
-        #ifndef REAL_CPU_TIME
+#ifndef REAL_CPU_TIME
         delete_acc();
-        #endif
+#endif
 
         exit(0);
       }
@@ -1199,12 +1199,16 @@ duration_cast<microseconds>(total_time_in_bcp).count() << std::endl; #endif
 #ifdef REAL_CPU_TIME
 
     if (total_prop % 10000 == 0) {
+      std::cout << total_prop << std::endl;
+      std::cout << end_prop << std::endl;
       std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
       std::cout << "total_time_in_bcp: "
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
                 << std::endl;
     }
     if (total_prop >= end_prop) {
+      std::cout << total_prop << std::endl;
+      std::cout << end_prop << std::endl;
       std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
       std::cout << "total_time_in_bcp: "
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
