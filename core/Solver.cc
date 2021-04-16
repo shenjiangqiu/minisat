@@ -973,6 +973,7 @@ CRef Solver::propagate() {
   // SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
   // now ready to sim
   // get_acc()->print_on(1);
+  
 #ifndef REAL_CPU_TIME
 #ifdef HISTO
 
@@ -1165,7 +1166,7 @@ lbool Solver::search(int) {
   }
   for (;;) {
     if (opt_save) {
-      if (propagations >= (unsigned long long)opt_checkpoint_prop) {
+      if (total_prop >= (unsigned long long)opt_checkpoint_prop) {
         { // save to file now;
           std::ofstream ofs(opt_checkpoint_name);
           boost::archive::binary_oarchive oa(ofs);
@@ -1199,16 +1200,17 @@ duration_cast<microseconds>(total_time_in_bcp).count() << std::endl; #endif
 #ifdef REAL_CPU_TIME
 
     if (total_prop % 10000 == 0) {
-      std::cout << total_prop << std::endl;
-      std::cout << end_prop << std::endl;
+      std::cout << "total_prop: " << total_prop << std::endl;
+      std::cout << "end_prop: " << end_prop << std::endl;
       std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
       std::cout << "total_time_in_bcp: "
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
                 << std::endl;
     }
     if (total_prop >= end_prop) {
-      std::cout << total_prop << std::endl;
-      std::cout << end_prop << std::endl;
+      std::cout << "total_prop: " << total_prop << std::endl;
+      std::cout << "end_prop: " << end_prop << std::endl;
+
       std::cout << "ENABLE_REAL_propagations: " << propagations << std::endl;
       std::cout << "total_time_in_bcp: "
                 << duration_cast<milliseconds>(total_time_in_bcp).count()
