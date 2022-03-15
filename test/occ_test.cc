@@ -1,5 +1,5 @@
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include "mtl/Vec.h"
 #include "core/Solver.h"
 #include "core/SolverTypes.h"
