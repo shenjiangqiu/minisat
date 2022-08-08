@@ -526,16 +526,8 @@ auto &get_acc() {
   if (!m_accs.empty()) {
     return m_accs;
   } else {
-    // current_cycle_s.push_back(0);
     current_cycle_s.push_back(0);
-    // current_cycle_s.push_back(0);
-
-    // current_cycle_s.push_back(0);
-
-    // m_accs.push_back(new acc(4, 4, current_cycle_s[0]));
-    m_accs.push_back(new acc(16, 16, current_cycle_s[0]));
-    // m_accs.push_back(new acc(16, 32, current_cycle_s[1]));
-    // m_accs.push_back(new acc(16, 64, current_cycle_s[2]));
+    m_accs.push_back(new acc(current_cycle_s[0]));
     return m_accs;
   }
 }
@@ -592,7 +584,7 @@ unsigned current_prop_round = 0;
 std::ofstream out_prop("prop.out");
 std::ofstream out_clause("clause.out");
 std::ofstream out_watcher("watcher.out");
-
+/// start a propagate for a new assignment
 CRef Solver::propagate() {
 #ifdef trace
   if (current_prop_round++ >= 1000) {
@@ -650,6 +642,8 @@ CRef Solver::propagate() {
     assert(next_level == trail.size() or last_level == trail.size());
 #endif
 
+  /// will process a assignment, this assignment will generate new assignments,
+  /// end when no new assignment is generated
   while (qhead < trail.size()) {
 
     this_prop++;
@@ -682,6 +676,10 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
     assign_wrap *this_wrap = nullptr;
+    /// setup this_wrap
+    /// if it's the frist one, generate it
+    /// if it's not the first one, use the generated one at the end of the last
+    /// round
     if (finished_init and finished_warmup and opt_enable_acc) {
       bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
 
@@ -693,18 +691,20 @@ CRef Solver::propagate() {
         this_wrap = lit_to_wrap[p.x];
         this_wrap->set_watcher_size(ws.size());
       }
-
-      this_wrap->set_addr((unsigned long long)((Watcher *)ws));
+      /// note that (watcher*) ws will get the addr of the frist element in the
+      /// vector
+      this_wrap->set_watcherlist_start_addr(
+          (unsigned long long)((Watcher *)ws));
       this_wrap->set_watcher_list_meta_addr((uint64_t)&ws);
       // watcher_access[(unsigned long long)((Watcher *)ws)]++;
     }
 #endif
 
-    int ii = 0;
+    int watcher_index_of_this_assign = 0;
     for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;) {
       this_watcher++;
 
-      ii++;
+      watcher_index_of_this_assign++;
       // Try to avoid inspecting the clause:
       Lit blocker = i->blocker;
 #ifndef REAL_CPU_TIME
@@ -717,8 +717,9 @@ CRef Solver::propagate() {
                    sjq::cache::read);
       }
       if (finished_init and finished_warmup and opt_enable_acc)
-        this_wrap->add_block_addr(ii - 1,
-                                  (unsigned long long)(&assigns[var(blocker)]));
+        this_wrap->add_blocker_addr(
+            watcher_index_of_this_assign - 1,
+            (unsigned long long)(&assigns[var(blocker)]));
 
 #endif
 
@@ -746,10 +747,10 @@ CRef Solver::propagate() {
 
       if (finished_init and finished_warmup and opt_enable_acc) {
         this_wrap->add_clause_addr(
-            ii - 1,
+            watcher_index_of_this_assign - 1,
             (unsigned long long)(&(c.data))); // currently we don't care about
                                               // the address//no we need it!!!!
-        this_wrap->set_clause_id(ii - 1, cr);
+        this_wrap->set_clause_id(watcher_index_of_this_assign - 1, cr);
       }
       // clause_access[(unsigned long long)ca.lea(cr)]++;
 #endif
@@ -781,12 +782,14 @@ CRef Solver::propagate() {
       if (finished_warmup and finished_init and opt_enable_acc) {
 
         // std::cout<<ii-1<<std::endl;
-        this_wrap->add_detail(ii - 1,
-                              (unsigned long long)(&assigns[var(c[0])]));
-        this_wrap->add_detail(ii - 1,
-                              (unsigned long long)(&assigns[var(c[1])]));
-        this_wrap->add_clause_literal(ii - 1, c[0]);
-        this_wrap->add_clause_literal(ii - 1, c[1]);
+        this_wrap->add_clause_literals_addr(
+            watcher_index_of_this_assign - 1,
+            (unsigned long long)(&assigns[var(c[0])]));
+        this_wrap->add_clause_literals_addr(
+            watcher_index_of_this_assign - 1,
+            (unsigned long long)(&assigns[var(c[1])]));
+        this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[0]);
+        this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[1]);
       }
 #endif
 
@@ -812,9 +815,10 @@ CRef Solver::propagate() {
                      sjq::cache::read);
         }
         if (finished_warmup and finished_init and opt_enable_acc) {
-          this_wrap->add_detail(ii - 1,
-                                (unsigned long long)(&assigns[var(c[k])]));
-          this_wrap->add_clause_literal(ii - 1, c[k]);
+          this_wrap->add_clause_literals_addr(
+              watcher_index_of_this_assign - 1,
+              (unsigned long long)(&assigns[var(c[k])]));
+          this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[k]);
         }
 #endif
 
@@ -831,14 +835,15 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
           if (finished_warmup and finished_init and opt_enable_acc) {
-            this_wrap->add_pushed_list(ii - 1, int(~c[1]));
+            this_wrap->add_pushed_list(watcher_index_of_this_assign - 1,
+                                       int(~c[1]));
             auto &pushed_watcher = watches[~c[1]];
             auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
 
-            this_wrap->add_pushed_addr(ii - 1,
+            this_wrap->add_pushed_addr(watcher_index_of_this_assign - 1,
                                        (unsigned long long)&last_location);
             this_wrap->set_other_watcher_list_meta_data(
-                ii - 1, (uint64_t)&pushed_watcher);
+                watcher_index_of_this_assign - 1, (uint64_t)&pushed_watcher);
           }
 #endif
 
@@ -851,7 +856,7 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
         if (finished_warmup and finished_init and opt_enable_acc)
-          this_wrap->set_generated_conf(ii - 1);
+          this_wrap->set_generated_conf(watcher_index_of_this_assign - 1);
 #endif
 #ifndef REAL_CPU_TIME
 #ifdef HISTO
@@ -869,7 +874,7 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
         if (finished_warmup and finished_init and opt_enable_acc)
-          this_wrap->set_watcher_size(ii);
+          this_wrap->set_watcher_size(watcher_index_of_this_assign);
 #endif
 
         while (i < end)
@@ -883,14 +888,16 @@ CRef Solver::propagate() {
           // std::cout << fmt::format("in solver,{} generate {}\n",
           // this_wrap->get_value(), first); watcher size should be 0 here, we
           // might not access this any more.
-          auto new_wrap = awf.create(first, 0, ii - 1, this_wrap,
-                                     this_wrap->get_level() + 1);
+          auto new_wrap = awf.create(first, 0, watcher_index_of_this_assign - 1,
+                                     this_wrap, this_wrap->get_level() + 1);
           // init the block addr value, to avent segment fault
           for (int i = 0; i < watches[first].size(); i++) {
-            new_wrap->add_block_addr(i, 0);
+            new_wrap->add_blocker_addr(i, 0);
           }
 
-          lit_to_wrap.insert({first, new_wrap});
+          auto result = lit_to_wrap.insert({first, new_wrap});
+          // should really check if the insert is successful
+          assert(result.second);
         }
 #endif
         uncheckedEnqueue(first, cr);
@@ -973,7 +980,7 @@ CRef Solver::propagate() {
   // SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
   // now ready to sim
   // get_acc()->print_on(1);
-  
+
 #ifndef REAL_CPU_TIME
 #ifdef HISTO
 
