@@ -18,7 +18,7 @@ if(REAL_CPU_TIME)
 target_compile_definitions(minisat PUBLIC REAL_CPU_TIME)
 target_link_libraries(minisat PUBLIC minisat_utiles  ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} )
 else()
-target_link_libraries(minisat PUBLIC minisat_utiles satacc ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} )
+target_link_libraries(minisat PUBLIC minisat_utiles ${Boost_LIBRARIES} ${ZLIB_LIBRARIES} rusttools fmt)
 endif()
 
 if(HISTO)

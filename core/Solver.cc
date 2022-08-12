@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //#include <core/acc.h>
 //#include <core/assign_wrap.h>
 #include <boost/format.hpp> // only needed for printing
-
+#include <rusttools.h>
 #ifdef HISTO
 #include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
 #endif
@@ -33,10 +33,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "mtl/Sort.h"
 
 #ifndef REAL_CPU_TIME
-
-#include "acc.h"
-#include "core/cache_wrap.h"
-#include <seq.h>
 
 #endif
 
@@ -512,63 +508,44 @@ is returned, |    otherwise CRef_Undef.
 |________________________________________________________________________________________________@*/
 using value_type = int;
 #ifndef REAL_CPU_TIME
-std::vector<acc *> m_accs;
 std::vector<uint64_t> current_cycle_s;
-void delete_acc() {
-  for (auto acc : m_accs) {
-    delete acc;
-  }
-}
-auto &get_acc() {
-  if (opt_seq_acc) {
-    return m_accs;
-  }
-  if (!m_accs.empty()) {
-    return m_accs;
-  } else {
-    current_cycle_s.push_back(0);
-    m_accs.push_back(new acc(current_cycle_s[0]));
-    return m_accs;
-  }
-}
 
-CacheWrap m_cache_wrap;
+// CacheWrap m_cache_wrap;
 uint64_t seq_cycle = 0; // not used, only for compatibility
-seq_pipeline *m_seq_pipeline = nullptr;
+// seq_pipeline *m_seq_pipeline = nullptr;
 uint64_t total_seq_cycle = 0; // use this cycle;
-auto get_seq_pipeline() {
-  if (!m_seq_pipeline) {
-    m_seq_pipeline = new seq_pipeline(16 << 20, "HBM-config.cfg", seq_cycle);
-  }
-  return m_seq_pipeline;
-}
+// auto get_seq_pipeline() {
+//   if (!m_seq_pipeline) {
+//     m_seq_pipeline = new seq_pipeline(16 << 20, "HBM-config.cfg", seq_cycle);
+//   }
+//   return m_seq_pipeline;
+// }
 
 unsigned long long total_cycle_in_bcp_sq = 0;
 
-void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache,
-                void *addr, sjq::cache::access_type type) {
-  auto result = cache.access((unsigned long long)addr, type);
-  if (result.first == CacheWrap::hit) {
+// void accumulate(unsigned long long &to_be_accumulated, CacheWrap &cache,
+//                 void *addr, sjq::cache::access_type type) {
+//   auto result = cache.access((unsigned long long)addr, type);
+//   if (result.first == CacheWrap::hit) {
 
-    switch (result.second) {
-    case CacheWrap::L1:
-      to_be_accumulated += 1;
-      break;
-    case CacheWrap::L2:
-      to_be_accumulated += 10;
-      break;
-    case CacheWrap::L3:
-      to_be_accumulated += 60;
-      break;
-    }
-  } else {
+//     switch (result.second) {
+//     case CacheWrap::L1:
+//       to_be_accumulated += 1;
+//       break;
+//     case CacheWrap::L2:
+//       to_be_accumulated += 10;
+//       break;
+//     case CacheWrap::L3:
+//       to_be_accumulated += 60;
+//       break;
+//     }
+//   } else {
 
-    assert(result.first == CacheWrap::miss);
-    to_be_accumulated += 119;
-  }
-}
+//     assert(result.first == CacheWrap::miss);
+//     to_be_accumulated += 119;
+//   }
+// }
 
-assign_wrap_factory awf;
 #endif
 
 #ifdef HISTO
@@ -585,6 +562,8 @@ std::ofstream out_prop("prop.out");
 std::ofstream out_clause("clause.out");
 std::ofstream out_watcher("watcher.out");
 /// start a propagate for a new assignment
+sjqrusttools::SataccMinisatTask *this_wrap = nullptr;
+
 CRef Solver::propagate() {
 #ifdef trace
   if (current_prop_round++ >= 1000) {
@@ -619,7 +598,7 @@ CRef Solver::propagate() {
 
 #endif
 #ifndef REAL_CPU_TIME
-  std::map<int, assign_wrap *> lit_to_wrap;
+  // std::map<int, assign_wrap *> lit_to_wrap;
 #endif
 
   CRef confl = CRef_Undef;
@@ -630,8 +609,7 @@ CRef Solver::propagate() {
   // std::unordered_map<unsigned long long, int> watcher_access;
   // std::unordered_map<unsigned long long, int> clause_access;
 #ifndef REAL_CPU_TIME
-
-  assign_wrap *first_wrap = nullptr;
+  // assign_wrap *first_wrap = nullptr;
 #endif
 
 #ifndef REAL_CPU_TIME
@@ -642,6 +620,31 @@ CRef Solver::propagate() {
     assert(next_level == trail.size() or last_level == trail.size());
 #endif
 
+#ifndef REAL_CPU_TIME
+
+  /// setup this_wrap
+  /// if it's the frist one, generate it
+  /// if it's not the first one, use the generated one at the end of the last
+  /// round
+  if (finished_init and finished_warmup and opt_enable_acc) {
+
+    // if (first) {
+    //   this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first
+    //   one first_wrap = this_wrap; lit_to_wrap[p.x] = this_wrap;
+    // } else {
+    //   this_wrap = lit_to_wrap[p.x];
+    //   this_wrap->set_watcher_size(ws.size());
+    // }
+    // /// note that (watcher*) ws will get the addr of the frist element in
+    // the
+    // /// vector
+    // this_wrap->set_watcherlist_start_addr(
+    //     (unsigned long long)((Watcher *)ws));
+    // this_wrap->set_watcher_list_meta_addr((uint64_t)&ws);
+    // watcher_access[(unsigned long long)((Watcher *)ws)]++;
+    sjqrusttools::start_new_assgin(this_wrap);
+  }
+#endif
   /// will process a assignment, this assignment will generate new assignments,
   /// end when no new assignment is generated
   while (qhead < trail.size()) {
@@ -671,34 +674,10 @@ CRef Solver::propagate() {
     if (ws.size() == 0) {
       continue;
     }
+    sjqrusttools::add_watcher_task(this_wrap, (uint64_t)&ws,
+                                   (uint64_t)(Watcher *)ws, p.x);
     Watcher *i, *j, *end;
     num_props++;
-#ifndef REAL_CPU_TIME
-
-    assign_wrap *this_wrap = nullptr;
-    /// setup this_wrap
-    /// if it's the frist one, generate it
-    /// if it's not the first one, use the generated one at the end of the last
-    /// round
-    if (finished_init and finished_warmup and opt_enable_acc) {
-      bool first = lit_to_wrap.find(p.x) == lit_to_wrap.end();
-
-      if (first) {
-        this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first one
-        first_wrap = this_wrap;
-        lit_to_wrap[p.x] = this_wrap;
-      } else {
-        this_wrap = lit_to_wrap[p.x];
-        this_wrap->set_watcher_size(ws.size());
-      }
-      /// note that (watcher*) ws will get the addr of the frist element in the
-      /// vector
-      this_wrap->set_watcherlist_start_addr(
-          (unsigned long long)((Watcher *)ws));
-      this_wrap->set_watcher_list_meta_addr((uint64_t)&ws);
-      // watcher_access[(unsigned long long)((Watcher *)ws)]++;
-    }
-#endif
 
     int watcher_index_of_this_assign = 0;
     for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;) {
@@ -710,16 +689,18 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
       if (opt_seq and finished_init and finished_warmup) {
-        // simulate watcher read
-        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, sjq::cache::read);
-        // simulate value read
-        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(blocker)],
-                   sjq::cache::read);
+        // // simulate watcher read
+        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, sjq::cache::read);
+        // // simulate value read
+        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap,
+        // &assigns[var(blocker)],
+        //            sjq::cache::read);
       }
-      if (finished_init and finished_warmup and opt_enable_acc)
-        this_wrap->add_blocker_addr(
-            watcher_index_of_this_assign - 1,
-            (unsigned long long)(&assigns[var(blocker)]));
+      if (finished_init and finished_warmup and opt_enable_acc) {
+        // this_wrap->add_blocker_addr(
+        //     watcher_index_of_this_assign - 1,
+        //     (unsigned long long)(&assigns[var(blocker)]));
+      }
 
 #endif
 
@@ -727,7 +708,8 @@ CRef Solver::propagate() {
       // current watcher list.
       if (value(blocker) == l_True) {
 #ifndef REAL_CPU_TIME
-
+        sjqrusttools::add_single_watcher_task_no_clause(
+            this_wrap, (uint64_t)(&assigns[var(blocker)]), p.x);
         if (opt_seq and finished_init and finished_warmup) {
           total_cycle_in_bcp_sq += 2;
         }
@@ -746,11 +728,16 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
       if (finished_init and finished_warmup and opt_enable_acc) {
-        this_wrap->add_clause_addr(
-            watcher_index_of_this_assign - 1,
-            (unsigned long long)(&(c.data))); // currently we don't care about
-                                              // the address//no we need it!!!!
-        this_wrap->set_clause_id(watcher_index_of_this_assign - 1, cr);
+        // this_wrap->add_clause_addr(
+        //     watcher_index_of_this_assign - 1,
+        //     (unsigned long long)(&(c.data))); // currently we don't care
+        //     about
+        //                                       // the address//no we need
+        //                                       it!!!!
+        // this_wrap->set_clause_id(watcher_index_of_this_assign - 1, cr);
+        sjqrusttools::add_single_watcher_task(
+            this_wrap, (uint64_t)(&assigns[var(blocker)]), (uint64_t)&c.data,
+            cr, c.size(), p.x);
       }
       // clause_access[(unsigned long long)ca.lea(cr)]++;
 #endif
@@ -762,12 +749,12 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
       if (opt_seq and finished_init and finished_warmup) {
-        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr],
-                   sjq::cache::read);
-        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0],
-                   sjq::cache::read);
-        accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1],
-                   sjq::cache::read);
+        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr],
+        //            sjq::cache::read);
+        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0],
+        //            sjq::cache::read);
+        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1],
+        //            sjq::cache::read);
       }
 #endif
 
@@ -781,15 +768,20 @@ CRef Solver::propagate() {
         total_cycle_in_bcp_sq += 2;
       if (finished_warmup and finished_init and opt_enable_acc) {
 
-        // std::cout<<ii-1<<std::endl;
-        this_wrap->add_clause_literals_addr(
-            watcher_index_of_this_assign - 1,
-            (unsigned long long)(&assigns[var(c[0])]));
-        this_wrap->add_clause_literals_addr(
-            watcher_index_of_this_assign - 1,
-            (unsigned long long)(&assigns[var(c[1])]));
-        this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[0]);
-        this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[1]);
+        // // std::cout<<ii-1<<std::endl;
+        // this_wrap->add_clause_literals_addr(
+        //     watcher_index_of_this_assign - 1,
+        //     (unsigned long long)(&assigns[var(c[0])]));
+        // this_wrap->add_clause_literals_addr(
+        //     watcher_index_of_this_assign - 1,
+        //     (unsigned long long)(&assigns[var(c[1])]));
+        // this_wrap->add_clause_literal(watcher_index_of_this_assign - 1,
+        // c[0]); this_wrap->add_clause_literal(watcher_index_of_this_assign -
+        // 1, c[1]);
+        sjqrusttools::add_single_watcher_clause_value_addr(
+            this_wrap, (uint64_t)(&assigns[var(c[0])]), c[0]);
+        sjqrusttools::add_single_watcher_clause_value_addr(
+            this_wrap, (uint64_t)(&assigns[var(c[1])]), c[1]);
       }
 #endif
 
@@ -809,25 +801,30 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
         if (opt_seq and finished_init and finished_warmup) {
-          accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &assigns[var(c[k])],
-                     sjq::cache::read);
-          accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k],
-                     sjq::cache::read);
+          // accumulate(total_cycle_in_bcp_sq, m_cache_wrap,
+          // &assigns[var(c[k])],
+          //            sjq::cache::read);
+          // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k],
+          //            sjq::cache::read);
         }
         if (finished_warmup and finished_init and opt_enable_acc) {
-          this_wrap->add_clause_literals_addr(
-              watcher_index_of_this_assign - 1,
-              (unsigned long long)(&assigns[var(c[k])]));
-          this_wrap->add_clause_literal(watcher_index_of_this_assign - 1, c[k]);
+          // this_wrap->add_clause_literals_addr(
+          //     watcher_index_of_this_assign - 1,
+          //     (unsigned long long)(&assigns[var(c[k])]));
+          // this_wrap->add_clause_literal(watcher_index_of_this_assign - 1,
+          // c[k]);
+          sjqrusttools::add_single_watcher_clause_value_addr(
+              this_wrap, (uint64_t)(&assigns[var(c[k])]), c[k]);
         }
 #endif
 
         if (value(c[k]) != l_False) {
 #ifndef REAL_CPU_TIME
 
-          if (opt_seq and finished_init and finished_warmup)
-            accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]],
-                       sjq::cache::read);
+          if (opt_seq and finished_init and finished_warmup) {
+            // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]],
+            //            sjq::cache::read);
+          }
 #endif
           c[1] = c[k];
           c[k] = false_lit;
@@ -835,15 +832,15 @@ CRef Solver::propagate() {
 #ifndef REAL_CPU_TIME
 
           if (finished_warmup and finished_init and opt_enable_acc) {
-            this_wrap->add_pushed_list(watcher_index_of_this_assign - 1,
-                                       int(~c[1]));
-            auto &pushed_watcher = watches[~c[1]];
-            auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
+            // this_wrap->add_pushed_list(watcher_index_of_this_assign - 1,
+            //                            int(~c[1]));
+            // auto &pushed_watcher = watches[~c[1]];
+            // auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
 
-            this_wrap->add_pushed_addr(watcher_index_of_this_assign - 1,
-                                       (unsigned long long)&last_location);
-            this_wrap->set_other_watcher_list_meta_data(
-                watcher_index_of_this_assign - 1, (uint64_t)&pushed_watcher);
+            // this_wrap->add_pushed_addr(watcher_index_of_this_assign - 1,
+            //                            (unsigned long long)&last_location);
+            // this_wrap->set_other_watcher_list_meta_data(
+            //     watcher_index_of_this_assign - 1, (uint64_t)&pushed_watcher);
           }
 #endif
 
@@ -855,8 +852,10 @@ CRef Solver::propagate() {
       if (value(first) == l_False) {
 #ifndef REAL_CPU_TIME
 
-        if (finished_warmup and finished_init and opt_enable_acc)
-          this_wrap->set_generated_conf(watcher_index_of_this_assign - 1);
+        if (finished_warmup and finished_init and opt_enable_acc) {
+          // this_wrap->set_generated_conf(watcher_index_of_this_assign
+          // - 1);
+        }
 #endif
 #ifndef REAL_CPU_TIME
 #ifdef HISTO
@@ -873,8 +872,9 @@ CRef Solver::propagate() {
         // Copy the remaining watches:
 #ifndef REAL_CPU_TIME
 
-        if (finished_warmup and finished_init and opt_enable_acc)
-          this_wrap->set_watcher_size(watcher_index_of_this_assign);
+        if (finished_warmup and finished_init and opt_enable_acc) {
+          // this_wrap->set_watcher_size(watcher_index_of_this_assign);
+        }
 #endif
 
         while (i < end)
@@ -888,16 +888,17 @@ CRef Solver::propagate() {
           // std::cout << fmt::format("in solver,{} generate {}\n",
           // this_wrap->get_value(), first); watcher size should be 0 here, we
           // might not access this any more.
-          auto new_wrap = awf.create(first, 0, watcher_index_of_this_assign - 1,
-                                     this_wrap, this_wrap->get_level() + 1);
+          // auto new_wrap = awf.create(first, 0, watcher_index_of_this_assign -
+          // 1,
+          //                            this_wrap, this_wrap->get_level() + 1);
           // init the block addr value, to avent segment fault
-          for (int i = 0; i < watches[first].size(); i++) {
-            new_wrap->add_blocker_addr(i, 0);
-          }
+          // for (int i = 0; i < watches[first].size(); i++) {
+          //   new_wrap->add_blocker_addr(i, 0);
+          // }
 
-          auto result = lit_to_wrap.insert({first, new_wrap});
+          // auto result = lit_to_wrap.insert({first, new_wrap});
           // should really check if the insert is successful
-          assert(result.second);
+          // assert(result.second);
         }
 #endif
         uncheckedEnqueue(first, cr);
@@ -933,9 +934,9 @@ CRef Solver::propagate() {
         std::cout << "total_cycle: " << total_seq_cycle << std::endl;
         // std::cout << get_acc()[i]->get_line_trace() << std::endl;
       } else {
-        std::cout << "total_cycle: " << get_acc()[0]->current_cycle
-                  << std::endl;
-        std::cout << get_acc()[0]->get_line_trace() << std::endl;
+        // std::cout << "total_cycle: " << get_acc()[0]->current_cycle
+        //           << std::endl;
+        // std::cout << get_acc()[0]->get_line_trace() << std::endl;
       }
 
       end_size = ca.size();
@@ -948,6 +949,8 @@ CRef Solver::propagate() {
     // std::cout<<opt_end_prop<<std::endl;
 
     if (total_prop >= (unsigned long long)end_prop - 1) {
+      sjqrusttools::run(this_wrap);
+      // do it here!
       std::cout << "start_prop: " << first_prop << std::endl;
       std::cout << "ending..." << std::endl;
       // std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) {
@@ -960,9 +963,9 @@ CRef Solver::propagate() {
         std::cout << "total_cycle: " << total_seq_cycle << std::endl;
         // std::cout << get_acc()[i]->get_line_trace() << std::endl;
       } else {
-        std::cout << "total_cycle: " << get_acc()[0]->current_cycle
-                  << std::endl;
-        std::cout << get_acc()[0]->get_line_trace() << std::endl;
+        // std::cout << "total_cycle: " << get_acc()[0]->current_cycle
+        //           << std::endl;
+        // std::cout << get_acc()[0]->get_line_trace() << std::endl;
       }
       end_size = ca.size();
       std::cout << "total_clause_size: " << end_size << std::endl;
@@ -970,7 +973,7 @@ CRef Solver::propagate() {
       std::cout << "origin_clause_num: " << clauses.size() << std::endl;
       std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
       // handle exit logic,
-      delete_acc();
+      // delete_acc();
       exit(0);
     }
   }
@@ -1003,38 +1006,38 @@ CRef Solver::propagate() {
     }
 #endif
   if (finished_init and finished_warmup and opt_enable_acc) {
-    if (opt_seq_acc and first_wrap != nullptr) {
-      get_seq_pipeline()->push(std::make_unique<cache_interface_req>(
-          AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
-      total_seq_cycle += get_seq_pipeline()->get();
-    } else {
-      if (first_wrap != nullptr) {
-        for (auto &&mc : get_acc()) {
-          mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(
-              AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
-        }
-        // std::vector<int> this_cycle;
-        // std::cout<<"start!"<<propagations<<std::endl;
-        for (unsigned int i = 0; i < get_acc().size(); i++) {
+    // if (opt_seq_acc and first_wrap != nullptr) {
+    //   get_seq_pipeline()->push(std::make_unique<cache_interface_req>(
+    //       AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
+    //   total_seq_cycle += get_seq_pipeline()->get();
+    // } else {
+    // if (first_wrap != nullptr) {
+    //   for (auto &&mc : get_acc()) {
+    //     mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(
+    //         AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
+    //   }
+    //   // std::vector<int> this_cycle;
+    //   // std::cout<<"start!"<<propagations<<std::endl;
+    //   for (unsigned int i = 0; i < get_acc().size(); i++) {
 
-          while (!get_acc()[i]->empty()) {
-            bool enable_debug = false;
-            get_acc()[i]->cycle();
-            get_acc()[i]->current_cycle++;
-            if (enable_debug) {
-              std::cout << get_acc()[i]->get_internal_size() << std::endl;
-            }
-          }
-          // flush
-          get_acc()[i]->flush_all();
-        }
-      }
-      // clean the evironment
-      // maybe we need use unique_ptr?
-    }
-    for (auto value : lit_to_wrap) {
-      delete value.second;
-    }
+    //     while (!get_acc()[i]->empty()) {
+    //       bool enable_debug = false;
+    //       get_acc()[i]->cycle();
+    //       get_acc()[i]->current_cycle++;
+    //       if (enable_debug) {
+    //         std::cout << get_acc()[i]->get_internal_size() << std::endl;
+    //       }
+    //     }
+    //     // flush
+    //     get_acc()[i]->flush_all();
+    //   }
+    // }
+    // clean the evironment
+    // maybe we need use unique_ptr?
+
+    // for (auto value : lit_to_wrap) {
+    //   delete value.second;
+    // }
   }
 #endif
 
@@ -1048,9 +1051,9 @@ CRef Solver::propagate() {
 |  reduceDB : ()  ->  [void]
 |
 |  Description:
-|    Remove half of the learnt clauses, minus the clauses locked by the current
-assignment. Locked |    clauses are clauses that are reason to some assignment.
-Binary clauses are never removed.
+|    Remove half of the learnt clauses, minus the clauses locked by the
+current assignment. Locked |    clauses are clauses that are reason to some
+assignment. Binary clauses are never removed.
 |________________________________________________________________________________________________@*/
 struct reduceDB_lt {
   ClauseAllocator &ca;
@@ -1108,9 +1111,9 @@ void Solver::rebuildOrderHeap() {
 |  simplify : [void]  ->  [bool]
 |
 |  Description:
-|    Simplify the clause database according to the current top-level assigment.
-Currently, the only |    thing done here is the removal of satisfied clauses,
-but more things can be put here.
+|    Simplify the clause database according to the current top-level
+assigment. Currently, the only |    thing done here is the removal of
+satisfied clauses, but more things can be put here.
 |________________________________________________________________________________________________@*/
 bool Solver::simplify() {
   assert(decisionLevel() == 0);
@@ -1130,8 +1133,8 @@ bool Solver::simplify() {
 
   simpDB_assigns = nAssigns();
   simpDB_props =
-      clauses_literals + learnts_literals; // (shouldn't depend on stats really,
-                                           // but it will do for now)
+      clauses_literals + learnts_literals; // (shouldn't depend on stats
+                                           // really, but it will do for now)
 
   return true;
 }
@@ -1151,6 +1154,7 @@ that the clause set is satisfiable. 'l_False' |    if the clause set is
 unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int) {
+  this_wrap = sjqrusttools::create_empty_task();
 #ifdef REAL_CPU_TIME
 
   static nanoseconds total_time_in_bcp(0);
@@ -1182,7 +1186,7 @@ lbool Solver::search(int) {
                     << std::endl;
         }
 #ifndef REAL_CPU_TIME
-        delete_acc();
+        // delete_acc();
 #endif
 
         exit(0);
