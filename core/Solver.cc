@@ -563,6 +563,7 @@ std::ofstream out_clause("clause.out");
 std::ofstream out_watcher("watcher.out");
 /// start a propagate for a new assignment
 sjqrusttools::SataccMinisatTask *this_wrap = nullptr;
+sjqrusttools::SimulatorWapper *this_sim = nullptr;
 
 CRef Solver::propagate() {
 #ifdef trace
@@ -949,7 +950,12 @@ CRef Solver::propagate() {
     // std::cout<<opt_end_prop<<std::endl;
 
     if (total_prop >= (unsigned long long)end_prop - 1) {
-      sjqrusttools::run(this_wrap);
+      // sjqrusttools::run_full_expr(this_wrap);
+      if (this_sim == nullptr || this_wrap == nullptr) {
+        std::cout << "error, this_sim or this_wrap is nullptr" << std::endl;
+        throw;
+      }
+      sjqrusttools::finish_simulator(this_wrap, this_sim);
       // do it here!
       std::cout << "start_prop: " << first_prop << std::endl;
       std::cout << "ending..." << std::endl;
@@ -1006,6 +1012,8 @@ CRef Solver::propagate() {
     }
 #endif
   if (finished_init and finished_warmup and opt_enable_acc) {
+    // run a single round of simulation
+    sjqrusttools::run_single_task(this_wrap, this_sim);
     // if (opt_seq_acc and first_wrap != nullptr) {
     //   get_seq_pipeline()->push(std::make_unique<cache_interface_req>(
     //       AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
@@ -1154,7 +1162,12 @@ that the clause set is satisfiable. 'l_False' |    if the clause set is
 unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
 lbool Solver::search(int) {
+  if (this_wrap != nullptr)
+    throw;
+  if (this_sim != nullptr)
+    throw;
   this_wrap = sjqrusttools::create_empty_task();
+  this_sim = sjqrusttools::get_simulator();
 #ifdef REAL_CPU_TIME
 
   static nanoseconds total_time_in_bcp(0);
