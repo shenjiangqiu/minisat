@@ -615,10 +615,10 @@ CRef Solver::propagate() {
 
 #ifndef REAL_CPU_TIME
 
-  int last_level = qhead;
+  // int last_level = qhead;
   int next_level = qhead + 1;
-  if (finished_init and finished_warmup)
-    assert(next_level == trail.size() or last_level == trail.size());
+  // if (finished_init and finished_warmup)
+  //   assert(next_level == trail.size() or last_level == trail.size());
 #endif
 
 #ifndef REAL_CPU_TIME
@@ -664,7 +664,7 @@ CRef Solver::propagate() {
 
         h(num_watcher_list);
 #endif
-        last_level = qhead;
+        // last_level = qhead;
         next_level = trail.size();
       }
 #endif
@@ -955,7 +955,11 @@ CRef Solver::propagate() {
         std::cout << "error, this_sim or this_wrap is nullptr" << std::endl;
         throw;
       }
-      sjqrusttools::finish_simulator(this_wrap, this_sim);
+      auto result = sjqrusttools::finish_simulator(this_wrap, this_sim);
+      if (!result) {
+        std::cout << "error, finish_simulator failed" << std::endl;
+        exit(-1);
+      }
       // do it here!
       std::cout << "start_prop: " << first_prop << std::endl;
       std::cout << "ending..." << std::endl;
@@ -1013,7 +1017,11 @@ CRef Solver::propagate() {
 #endif
   if (finished_init and finished_warmup and opt_enable_acc) {
     // run a single round of simulation
-    sjqrusttools::run_single_task(this_wrap, this_sim);
+    auto result = sjqrusttools::run_single_task(this_wrap, this_sim);
+    if (!result) {
+      std::cout << "error, run_single_task failed" << std::endl;
+      exit(-1);
+    }
     // if (opt_seq_acc and first_wrap != nullptr) {
     //   get_seq_pipeline()->push(std::make_unique<cache_interface_req>(
     //       AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
