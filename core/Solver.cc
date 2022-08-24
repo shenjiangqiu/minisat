@@ -24,7 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //#include <core/acc.h>
 //#include <core/assign_wrap.h>
 #include <boost/format.hpp> // only needed for printing
-#include <rusttools.h>
+// #include <rusttools.h>
+#include <rust_tools_wrapper.hpp>
 #ifdef HISTO
 #include <boost/histogram.hpp> // make_histogram, regular, weight, indexed
 #endif
@@ -562,9 +563,9 @@ std::ofstream out_prop("prop.out");
 std::ofstream out_clause("clause.out");
 std::ofstream out_watcher("watcher.out");
 /// start a propagate for a new assignment
-sjqrusttools::SataccMinisatTask *this_wrap = nullptr;
-sjqrusttools::SimulatorWapper *this_sim = nullptr;
-sjqrusttools::Satstat *this_stat = nullptr;
+SataccMinisatTaskWrapper *this_wrap = nullptr;
+SimulatorWapper *this_sim = nullptr;
+SatStatsWrapper *this_stat = nullptr;
 CRef Solver::propagate() {
 
   CRef confl = CRef_Undef;
@@ -575,7 +576,7 @@ CRef Solver::propagate() {
 
   if (finished_init and finished_warmup and opt_enable_acc) {
 
-    sjqrusttools::start_new_assgin(this_wrap);
+    this_wrap->start_new_assgin();
   }
 
   while (qhead < trail.size()) {
@@ -592,12 +593,11 @@ CRef Solver::propagate() {
     Lit p = trail[qhead++];
     vec<Watcher> &ws = watches[p];
     if (ws.size() == 0) {
-      sjqrusttools::satstat_add_watcher(this_stat, 0, 0);
+      this_stat->satstat_add_watcher(0, 0);
       continue;
     }
     if (opt_enable_acc && finished_init and finished_warmup) {
-      sjqrusttools::add_watcher_task(this_wrap, (uint64_t)&ws,
-                                     (uint64_t)(Watcher *)ws, p.x);
+      this_wrap->add_watcher_task((uint64_t)&ws, (uint64_t)(Watcher *)ws, p.x);
     }
 
     Watcher *i, *j, *end;
@@ -612,8 +612,8 @@ CRef Solver::propagate() {
 
       if (value(blocker) == l_True) {
         if (opt_seq and finished_init and finished_warmup) {
-          sjqrusttools::add_single_watcher_task_no_clause(
-              this_wrap, (uint64_t)(&assigns[var(blocker)]), p.x);
+          this_wrap->add_single_watcher_task_no_clause(
+              (uint64_t)(&assigns[var(blocker)]), p.x);
         }
         if (opt_seq and finished_init and finished_warmup) {
           total_cycle_in_bcp_sq += 2;
@@ -632,9 +632,9 @@ CRef Solver::propagate() {
 
       if (finished_init and finished_warmup and opt_enable_acc) {
 
-        sjqrusttools::add_single_watcher_task(
-            this_wrap, (uint64_t)(&assigns[var(blocker)]), (uint64_t)&c.data,
-            cr, c.size(), p.x);
+        this_wrap->add_single_watcher_task((uint64_t)(&assigns[var(blocker)]),
+                                           (uint64_t)&c.data, cr, c.size(),
+                                           p.x);
       }
       Lit false_lit = ~p;
       if (c[0] == false_lit)
@@ -649,10 +649,10 @@ CRef Solver::propagate() {
         total_cycle_in_bcp_sq += 2;
       if (finished_warmup and finished_init and opt_enable_acc) {
 
-        sjqrusttools::add_single_watcher_clause_value_addr(
-            this_wrap, (uint64_t)(&assigns[var(c[0])]), c[0]);
-        sjqrusttools::add_single_watcher_clause_value_addr(
-            this_wrap, (uint64_t)(&assigns[var(c[1])]), c[1]);
+        this_wrap->add_single_watcher_clause_value_addr(
+            (uint64_t)(&assigns[var(c[0])]), c[0]);
+        this_wrap->add_single_watcher_clause_value_addr(
+            (uint64_t)(&assigns[var(c[1])]), c[1]);
       }
 
       if (first != blocker && value(first) == l_True) {
@@ -668,8 +668,8 @@ CRef Solver::propagate() {
 
         if (finished_warmup and finished_init and opt_enable_acc) {
 
-          sjqrusttools::add_single_watcher_clause_value_addr(
-              this_wrap, (uint64_t)(&assigns[var(c[k])]), c[k]);
+          this_wrap->add_single_watcher_clause_value_addr(
+              (uint64_t)(&assigns[var(c[k])]), c[k]);
         }
 
         if (value(c[k]) != l_False) {
@@ -697,13 +697,12 @@ CRef Solver::propagate() {
     NextClause:;
     }
     ws.shrink(i - j);
-    sjqrusttools::satstat_add_watcher(this_stat, total_clause,
-                                      total_clause_read);
+    this_stat->satstat_add_watcher(total_clause, total_clause_read);
   } // end while (qhead < trail.size())
   if (confl == CRef_Undef) {
-    sjqrusttools::end_decision(this_stat, false);
+    this_stat->end_decision(false);
   } else {
-    sjqrusttools::end_decision(this_stat, true);
+    this_stat->end_decision(true);
   }
 
   propagations += num_props;
@@ -730,7 +729,7 @@ CRef Solver::propagate() {
         std::cout << "error, this_sim or this_wrap is nullptr" << std::endl;
         throw;
       }
-      auto result = sjqrusttools::finish_simulator(this_wrap, this_sim);
+      auto result = this_sim->finish_simulator();
       if (!result) {
         std::cout << "error, finish_simulator failed" << std::endl;
         exit(-1);
@@ -750,16 +749,16 @@ CRef Solver::propagate() {
       std::cout << "origin_clause_num: " << clauses.size() << std::endl;
       std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
     }
-    sjqrusttools::show_data(this_stat);
-    sjqrusttools::save_data(this_stat);
-    sjqrusttools::delete_satstat_pointer(this_stat);
+    this_stat->show_data();
+    this_stat->save_data();
+    delete this_stat;
 
     exit(0);
   }
   simpDB_props -= num_props;
 
   if (finished_init and finished_warmup and opt_enable_acc) {
-    auto result = sjqrusttools::run_single_task(this_wrap, this_sim);
+    auto result = this_sim->run_single_task(*this_wrap);
     if (!result) {
       std::cout << "error, run_single_task failed" << std::endl;
       exit(-1);
@@ -882,11 +881,11 @@ lbool Solver::search(int) {
   if (this_sim != nullptr)
     throw;
   if (opt_enable_acc && finished_warmup && finished_init) {
-    this_wrap = sjqrusttools::create_empty_task();
-    this_sim = sjqrusttools::get_simulator();
+    this_wrap = new SataccMinisatTaskWrapper();
+    this_sim = new SimulatorWapper();
   }
   fmt::print("creating the statis\n");
-  this_stat = sjqrusttools::new_satstat_pointer();
+  this_stat = new SatStatsWrapper();
 
 #ifdef REAL_CPU_TIME
 
