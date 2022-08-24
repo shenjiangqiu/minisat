@@ -566,120 +566,40 @@ sjqrusttools::SataccMinisatTask *this_wrap = nullptr;
 sjqrusttools::SimulatorWapper *this_sim = nullptr;
 sjqrusttools::Satstat *this_stat = nullptr;
 CRef Solver::propagate() {
-#ifdef trace
-  if (current_prop_round++ >= 1000) {
-    current_prop_round = 0;
-    out_prop << this_prop << "\n";
-    out_clause << this_clause << "\n";
-    out_watcher << this_watcher << "\n";
-    this_prop = 0;
-    this_clause = 0;
-    this_watcher = 0;
-    out_prop.flush();
-    out_clause.flush();
-    out_watcher.flush();
-    // end search
-  }
-#endif
-#ifdef HISTO
-
-  static auto h = make_histogram(axis::regular<>(axis::step(1), 1, 400, "x"));
-#endif
-// std::ofstream real("real.txt", std::ios_base::app);
-
-// SimMarker(CONTROL_MAGIC_A,CONTROL_PROP_START_B);
-
-// std::map<int, int> generate_relation_map;
-#ifndef REAL_CPU_TIME
-  if (opt_seq and finished_init and finished_warmup and
-      propagations % 1000000 == 1) {
-    std::cout << "propagations " << propagations << std::endl;
-    std::cout << "total_cycle " << total_cycle_in_bcp_sq << std::endl;
-  }
-
-#endif
-#ifndef REAL_CPU_TIME
-  // std::map<int, assign_wrap *> lit_to_wrap;
-#endif
 
   CRef confl = CRef_Undef;
   int num_props = 0;
   watches.cleanAll();
 
-  // assign_wrap* shared_null;
-  // std::unordered_map<unsigned long long, int> watcher_access;
-  // std::unordered_map<unsigned long long, int> clause_access;
-#ifndef REAL_CPU_TIME
-  // assign_wrap *first_wrap = nullptr;
-#endif
-
-#ifndef REAL_CPU_TIME
-
-  // int last_level = qhead;
   int next_level = qhead + 1;
-  // if (finished_init and finished_warmup)
-  //   assert(next_level == trail.size() or last_level == trail.size());
-#endif
 
-#ifndef REAL_CPU_TIME
-
-  /// setup this_wrap
-  /// if it's the frist one, generate it
-  /// if it's not the first one, use the generated one at the end of the last
-  /// round
   if (finished_init and finished_warmup and opt_enable_acc) {
 
-    // if (first) {
-    //   this_wrap = awf.create(p.x, ws.size(), -1, nullptr, 0); // the first
-    //   one first_wrap = this_wrap; lit_to_wrap[p.x] = this_wrap;
-    // } else {
-    //   this_wrap = lit_to_wrap[p.x];
-    //   this_wrap->set_watcher_size(ws.size());
-    // }
-    // /// note that (watcher*) ws will get the addr of the frist element in
-    // the
-    // /// vector
-    // this_wrap->set_watcherlist_start_addr(
-    //     (unsigned long long)((Watcher *)ws));
-    // this_wrap->set_watcher_list_meta_addr((uint64_t)&ws);
-    // watcher_access[(unsigned long long)((Watcher *)ws)]++;
     sjqrusttools::start_new_assgin(this_wrap);
   }
-#endif
-  /// will process a assignment, this assignment will generate new assignments,
-  /// end when no new assignment is generated
+
   while (qhead < trail.size()) {
     unsigned total_clause = 0;
     unsigned total_clause_read = 0;
     this_prop++;
-#ifndef REAL_CPU_TIME
-    // the algorithm to calculate the concurrent parallel watcher list, fist
-    // level is qhead to qhead+1, when meet next level, the q_head to
-    // trail.size() -1 will belong to this level so the next level is
-    // trail.size() so, the last level should be calculate if a conflict meet or
-    // the while loop ended.!!
+
     if (finished_init and finished_warmup)
       if (qhead == next_level) {
-#ifdef HISTO
-        auto num_watcher_list = qhead - last_level;
 
-        h(num_watcher_list);
-#endif
-        // last_level = qhead;
         next_level = trail.size();
       }
-#endif
 
-    Lit p = trail[qhead++]; // 'p' is enqueued fact to propagate.
-    // std::cout << "minisat::lit: " << p.x << std::endl;
+    Lit p = trail[qhead++];
     vec<Watcher> &ws = watches[p];
     if (ws.size() == 0) {
-      // this watcher list have no clause
       sjqrusttools::satstat_add_watcher(this_stat, 0, 0);
       continue;
     }
-    sjqrusttools::add_watcher_task(this_wrap, (uint64_t)&ws,
-                                   (uint64_t)(Watcher *)ws, p.x);
+    if (opt_enable_acc && finished_init and finished_warmup) {
+      sjqrusttools::add_watcher_task(this_wrap, (uint64_t)&ws,
+                                     (uint64_t)(Watcher *)ws, p.x);
+    }
+
     Watcher *i, *j, *end;
     num_props++;
     total_clause = ws.size();
@@ -688,226 +608,89 @@ CRef Solver::propagate() {
       this_watcher++;
 
       watcher_index_of_this_assign++;
-      // Try to avoid inspecting the clause:
       Lit blocker = i->blocker;
-#ifndef REAL_CPU_TIME
 
-      if (opt_seq and finished_init and finished_warmup) {
-        // // simulate watcher read
-        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, i, sjq::cache::read);
-        // // simulate value read
-        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap,
-        // &assigns[var(blocker)],
-        //            sjq::cache::read);
-      }
-      if (finished_init and finished_warmup and opt_enable_acc) {
-        // this_wrap->add_blocker_addr(
-        //     watcher_index_of_this_assign - 1,
-        //     (unsigned long long)(&assigns[var(blocker)]));
-      }
-
-#endif
-
-      // notice there, this is finished in the watcher unit,push it back to the
-      // current watcher list.
       if (value(blocker) == l_True) {
-#ifndef REAL_CPU_TIME
-        sjqrusttools::add_single_watcher_task_no_clause(
-            this_wrap, (uint64_t)(&assigns[var(blocker)]), p.x);
+        if (opt_seq and finished_init and finished_warmup) {
+          sjqrusttools::add_single_watcher_task_no_clause(
+              this_wrap, (uint64_t)(&assigns[var(blocker)]), p.x);
+        }
         if (opt_seq and finished_init and finished_warmup) {
           total_cycle_in_bcp_sq += 2;
         }
-#endif
 
         *j++ = *i++;
 
         continue;
       }
-      // need to read the clause
       total_clause_read++;
-      // Make sure the false literal is data[1]:
 
       CRef cr = i->cref;
       Clause &c = ca[cr];
       assert(&c == ca.lea(cr));
       this_clause++;
-#ifndef REAL_CPU_TIME
 
       if (finished_init and finished_warmup and opt_enable_acc) {
-        // this_wrap->add_clause_addr(
-        //     watcher_index_of_this_assign - 1,
-        //     (unsigned long long)(&(c.data))); // currently we don't care
-        //     about
-        //                                       // the address//no we need
-        //                                       it!!!!
-        // this_wrap->set_clause_id(watcher_index_of_this_assign - 1, cr);
+
         sjqrusttools::add_single_watcher_task(
             this_wrap, (uint64_t)(&assigns[var(blocker)]), (uint64_t)&c.data,
             cr, c.size(), p.x);
       }
-      // clause_access[(unsigned long long)ca.lea(cr)]++;
-#endif
       Lit false_lit = ~p;
       if (c[0] == false_lit)
         c[0] = c[1], c[1] = false_lit;
       assert(c[1] == false_lit);
       i++;
-#ifndef REAL_CPU_TIME
 
-      if (opt_seq and finished_init and finished_warmup) {
-        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &ca[cr],
-        //            sjq::cache::read);
-        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[0],
-        //            sjq::cache::read);
-        // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[1],
-        //            sjq::cache::read);
-      }
-#endif
-
-      // If 0th watch is true, then clause is already satisfied.
       Lit first = c[0];
       Watcher w = Watcher(cr, first);
-
-#ifndef REAL_CPU_TIME
 
       if (opt_seq and finished_init and finished_warmup)
         total_cycle_in_bcp_sq += 2;
       if (finished_warmup and finished_init and opt_enable_acc) {
 
-        // // std::cout<<ii-1<<std::endl;
-        // this_wrap->add_clause_literals_addr(
-        //     watcher_index_of_this_assign - 1,
-        //     (unsigned long long)(&assigns[var(c[0])]));
-        // this_wrap->add_clause_literals_addr(
-        //     watcher_index_of_this_assign - 1,
-        //     (unsigned long long)(&assigns[var(c[1])]));
-        // this_wrap->add_clause_literal(watcher_index_of_this_assign - 1,
-        // c[0]); this_wrap->add_clause_literal(watcher_index_of_this_assign -
-        // 1, c[1]);
         sjqrusttools::add_single_watcher_clause_value_addr(
             this_wrap, (uint64_t)(&assigns[var(c[0])]), c[0]);
         sjqrusttools::add_single_watcher_clause_value_addr(
             this_wrap, (uint64_t)(&assigns[var(c[1])]), c[1]);
       }
-#endif
 
       if (first != blocker && value(first) == l_True) {
-#ifndef REAL_CPU_TIME
 
         if (opt_seq and finished_init and finished_warmup)
           total_cycle_in_bcp_sq += 2;
-#endif
 
         *j++ = w;
         continue;
       }
 
-      // Look for new watch:
       for (int k = 2; k < c.size(); k++) {
-#ifndef REAL_CPU_TIME
 
-        if (opt_seq and finished_init and finished_warmup) {
-          // accumulate(total_cycle_in_bcp_sq, m_cache_wrap,
-          // &assigns[var(c[k])],
-          //            sjq::cache::read);
-          // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &c[k],
-          //            sjq::cache::read);
-        }
         if (finished_warmup and finished_init and opt_enable_acc) {
-          // this_wrap->add_clause_literals_addr(
-          //     watcher_index_of_this_assign - 1,
-          //     (unsigned long long)(&assigns[var(c[k])]));
-          // this_wrap->add_clause_literal(watcher_index_of_this_assign - 1,
-          // c[k]);
+
           sjqrusttools::add_single_watcher_clause_value_addr(
               this_wrap, (uint64_t)(&assigns[var(c[k])]), c[k]);
         }
-#endif
 
         if (value(c[k]) != l_False) {
-#ifndef REAL_CPU_TIME
 
-          if (opt_seq and finished_init and finished_warmup) {
-            // accumulate(total_cycle_in_bcp_sq, m_cache_wrap, &watches[~c[1]],
-            //            sjq::cache::read);
-          }
-#endif
           c[1] = c[k];
           c[k] = false_lit;
           watches[~c[1]].push(w);
-#ifndef REAL_CPU_TIME
-
-          if (finished_warmup and finished_init and opt_enable_acc) {
-            // this_wrap->add_pushed_list(watcher_index_of_this_assign - 1,
-            //                            int(~c[1]));
-            // auto &pushed_watcher = watches[~c[1]];
-            // auto &last_location = pushed_watcher[pushed_watcher.size() - 1];
-
-            // this_wrap->add_pushed_addr(watcher_index_of_this_assign - 1,
-            //                            (unsigned long long)&last_location);
-            // this_wrap->set_other_watcher_list_meta_data(
-            //     watcher_index_of_this_assign - 1, (uint64_t)&pushed_watcher);
-          }
-#endif
 
           goto NextClause;
         }
       }
-      // Did not find watch -- clause is unit under assignment:
       *j++ = w;
       if (value(first) == l_False) {
-#ifndef REAL_CPU_TIME
 
-        if (finished_warmup and finished_init and opt_enable_acc) {
-          // this_wrap->set_generated_conf(watcher_index_of_this_assign
-          // - 1);
-        }
-#endif
-#ifndef REAL_CPU_TIME
-#ifdef HISTO
-
-        if (qhead - last_level + 1 > 0 and finished_init and finished_warmup) {
-          h(qhead - last_level + 1);
-        }
-#endif
-#endif
-        // get_acc()->set_ready();
         confl = cr;
-        // after doint this , we will jump out the while loop
         qhead = trail.size();
 
-        // Copy the remaining watches:
-#ifndef REAL_CPU_TIME
-
-        if (finished_warmup and finished_init and opt_enable_acc) {
-          // this_wrap->set_watcher_size(watcher_index_of_this_assign);
-        }
-#endif
-        // after doing this, we will jump out of the watcher list
         while (i < end)
           *j++ = *i++;
       } else {
-        // first generate new wrap;
-        // wrap size=10//that's a arbitrary value, cause we don't know it yet
-#ifndef REAL_CPU_TIME
 
-        if (finished_warmup and finished_init and opt_enable_acc) {
-          // std::cout << fmt::format("in solver,{} generate {}\n",
-          // this_wrap->get_value(), first); watcher size should be 0 here, we
-          // might not access this any more.
-          // auto new_wrap = awf.create(first, 0, watcher_index_of_this_assign -
-          // 1,
-          //                            this_wrap, this_wrap->get_level() + 1);
-          // init the block addr value, to avent segment fault
-          // for (int i = 0; i < watches[first].size(); i++) {
-          //   new_wrap->add_blocker_addr(i, 0);
-          // }
-
-          // auto result = lit_to_wrap.insert({first, new_wrap});
-          // should really check if the insert is successful
-          // assert(result.second);
-        }
-#endif
         uncheckedEnqueue(first, cr);
       }
 
@@ -922,55 +705,31 @@ CRef Solver::propagate() {
   } else {
     sjqrusttools::end_decision(this_stat, true);
   }
-#ifndef REAL_CPU_TIME
-  // normally end
-#ifdef HISTO
 
-  if (finished_init and finished_warmup and confl == CRef_Undef) {
-    h(qhead - last_level);
-  }
-#endif
-#endif
   propagations += num_props;
 
-#ifndef REAL_CPU_TIME
-  if (opt_enable_acc and finished_init and finished_warmup) {
-    if (propagations > next_print) {
-      next_print += 1000000;
-      // std::for_each(get_acc().begin(), get_acc().end(), [](auto p_acc) {
-      // std::cout << *p_acc << std::endl; });
+  if (propagations > next_print) {
+    next_print += 1000000;
 
-      std::cout << "\n\nprint the " << 0 << " th acc" << std::endl;
-      std::cout << "propagations: " << propagations << std::endl;
-      std::cout << "decisions: " << total_prop << std::endl;
+    std::cout << "\n\nprint the " << 0 << " th acc" << std::endl;
+    std::cout << "propagations: " << propagations << std::endl;
+    std::cout << "decisions: " << total_prop << std::endl;
 
-      if (opt_seq_acc) {
-        std::cout << "total_cycle: " << total_seq_cycle << std::endl;
-        // std::cout << get_acc()[i]->get_line_trace() << std::endl;
-      } else {
-        // std::cout << "total_cycle: " << get_acc()[0]->current_cycle
-        //           << std::endl;
-        // std::cout << get_acc()[0]->get_line_trace() << std::endl;
-      }
+    end_size = ca.size();
+    std::cout << "total_clause_size: " << end_size << std::endl;
+    std::cout << "origin_clause_size: " << start_size << std::endl;
+    std::cout << "origin_clause_num: " << clauses.size() << std::endl;
+    std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+  }
 
-      end_size = ca.size();
-      std::cout << "total_clause_size: " << end_size << std::endl;
-      std::cout << "origin_clause_size: " << start_size << std::endl;
-      std::cout << "origin_clause_num: " << clauses.size() << std::endl;
-      std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-      // handle exit logic,
-    }
-    // std::cout<<opt_end_prop<<std::endl;
+  if (total_prop >= (unsigned long long)end_prop - 1) {
 
-    if (total_prop >= (unsigned long long)end_prop - 1) {
-      // sjqrusttools::run_full_expr(this_wrap);
+    if (opt_enable_acc && finished_warmup && finished_init) {
       if (this_sim == nullptr || this_wrap == nullptr) {
         std::cout << "error, this_sim or this_wrap is nullptr" << std::endl;
         throw;
       }
       auto result = sjqrusttools::finish_simulator(this_wrap, this_sim);
-      sjqrusttools::show_data(this_stat);
-      sjqrusttools::delete_satstat_pointer(this_stat);
       if (!result) {
         std::cout << "error, finish_simulator failed" << std::endl;
         exit(-1);
@@ -984,95 +743,26 @@ CRef Solver::propagate() {
       std::cout << "\n\nprint the " << 0 << " th acc" << std::endl;
       std::cout << "propagations: " << propagations << std::endl;
       std::cout << "decisions: " << total_prop << std::endl;
-      if (opt_seq_acc) {
-        std::cout << "total_cycle: " << total_seq_cycle << std::endl;
-        // std::cout << get_acc()[i]->get_line_trace() << std::endl;
-      } else {
-        // std::cout << "total_cycle: " << get_acc()[0]->current_cycle
-        //           << std::endl;
-        // std::cout << get_acc()[0]->get_line_trace() << std::endl;
-      }
       end_size = ca.size();
       std::cout << "total_clause_size: " << end_size << std::endl;
       std::cout << "origin_clause_size: " << start_size << std::endl;
       std::cout << "origin_clause_num: " << clauses.size() << std::endl;
       std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
-      // handle exit logic,
-      // delete_acc();
-      exit(0);
     }
+    sjqrusttools::show_data(this_stat);
+    sjqrusttools::delete_satstat_pointer(this_stat);
+
+    exit(0);
   }
-#endif
   simpDB_props -= num_props;
 
-  // SimMarker(CONTROL_MAGIC_A, CONTROL_PROP_END_B);
-  // now ready to sim
-  // get_acc()->print_on(1);
-
-#ifndef REAL_CPU_TIME
-#ifdef HISTO
-
-  if (finished_init and finished_warmup)
-    if (propagations % 1000000 == 9999 or propagations % 1000000 == 0) {
-      std::cout << "propagations: " << propagations << std::endl;
-
-      for (auto &&x : indexed(h, coverage::all)) {
-        std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() %
-                         x.bin().lower() % x.bin().upper() % *x;
-      }
-    }
-  if (finished_init and finished_warmup)
-    if (propagations >= (unsigned long long)end_prop - 1) {
-      std::cout << "propagations: " << propagations << std::endl;
-      for (auto &&x : indexed(h, coverage::all)) {
-        std::cout << boost::format("bin %2i [%4.1f, %4.1f): %i\n") % x.index() %
-                         x.bin().lower() % x.bin().upper() % *x;
-      }
-    }
-#endif
   if (finished_init and finished_warmup and opt_enable_acc) {
-    // run a single round of simulation
     auto result = sjqrusttools::run_single_task(this_wrap, this_sim);
     if (!result) {
       std::cout << "error, run_single_task failed" << std::endl;
       exit(-1);
     }
-    // if (opt_seq_acc and first_wrap != nullptr) {
-    //   get_seq_pipeline()->push(std::make_unique<cache_interface_req>(
-    //       AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
-    //   total_seq_cycle += get_seq_pipeline()->get();
-    // } else {
-    // if (first_wrap != nullptr) {
-    //   for (auto &&mc : get_acc()) {
-    //     mc->in_m_trail.push_back(std::make_unique<cache_interface_req>(
-    //         AccessType::ReadWatcherMetaData, 0, 0, 0, first_wrap));
-    //   }
-    //   // std::vector<int> this_cycle;
-    //   // std::cout<<"start!"<<propagations<<std::endl;
-    //   for (unsigned int i = 0; i < get_acc().size(); i++) {
-
-    //     while (!get_acc()[i]->empty()) {
-    //       bool enable_debug = false;
-    //       get_acc()[i]->cycle();
-    //       get_acc()[i]->current_cycle++;
-    //       if (enable_debug) {
-    //         std::cout << get_acc()[i]->get_internal_size() << std::endl;
-    //       }
-    //     }
-    //     // flush
-    //     get_acc()[i]->flush_all();
-    //   }
-    // }
-    // clean the evironment
-    // maybe we need use unique_ptr?
-
-    // for (auto value : lit_to_wrap) {
-    //   delete value.second;
-    // }
   }
-#endif
-
-  // std::cout << "propagations:" << propagations << std::endl;
 
   return confl;
 }
@@ -1189,9 +879,13 @@ lbool Solver::search(int) {
     throw;
   if (this_sim != nullptr)
     throw;
-  this_wrap = sjqrusttools::create_empty_task();
-  this_sim = sjqrusttools::get_simulator();
+  if (opt_enable_acc && finished_warmup && finished_init) {
+    this_wrap = sjqrusttools::create_empty_task();
+    this_sim = sjqrusttools::get_simulator();
+  }
+  fmt::print("creating the statis\n");
   this_stat = sjqrusttools::new_satstat_pointer();
+
 #ifdef REAL_CPU_TIME
 
   static nanoseconds total_time_in_bcp(0);
