@@ -564,7 +564,7 @@ std::ofstream out_watcher("watcher.out");
 /// start a propagate for a new assignment
 sjqrusttools::SataccMinisatTask *this_wrap = nullptr;
 sjqrusttools::SimulatorWapper *this_sim = nullptr;
-
+sjqrusttools::Satstat *this_stat = nullptr;
 CRef Solver::propagate() {
 #ifdef trace
   if (current_prop_round++ >= 1000) {
@@ -649,7 +649,8 @@ CRef Solver::propagate() {
   /// will process a assignment, this assignment will generate new assignments,
   /// end when no new assignment is generated
   while (qhead < trail.size()) {
-
+    unsigned total_clause = 0;
+    unsigned total_clause_read = 0;
     this_prop++;
 #ifndef REAL_CPU_TIME
     // the algorithm to calculate the concurrent parallel watcher list, fist
@@ -673,13 +674,15 @@ CRef Solver::propagate() {
     // std::cout << "minisat::lit: " << p.x << std::endl;
     vec<Watcher> &ws = watches[p];
     if (ws.size() == 0) {
+      // this watcher list have no clause
+      sjqrusttools::satstat_add_watcher(this_stat, 0, 0);
       continue;
     }
     sjqrusttools::add_watcher_task(this_wrap, (uint64_t)&ws,
                                    (uint64_t)(Watcher *)ws, p.x);
     Watcher *i, *j, *end;
     num_props++;
-
+    total_clause = ws.size();
     int watcher_index_of_this_assign = 0;
     for (i = j = (Watcher *)ws, end = i + ws.size(); i != end;) {
       this_watcher++;
@@ -717,9 +720,11 @@ CRef Solver::propagate() {
 #endif
 
         *j++ = *i++;
+
         continue;
       }
-
+      // need to read the clause
+      total_clause_read++;
       // Make sure the false literal is data[1]:
 
       CRef cr = i->cref;
@@ -868,6 +873,7 @@ CRef Solver::propagate() {
 #endif
         // get_acc()->set_ready();
         confl = cr;
+        // after doint this , we will jump out the while loop
         qhead = trail.size();
 
         // Copy the remaining watches:
@@ -877,7 +883,7 @@ CRef Solver::propagate() {
           // this_wrap->set_watcher_size(watcher_index_of_this_assign);
         }
 #endif
-
+        // after doing this, we will jump out of the watcher list
         while (i < end)
           *j++ = *i++;
       } else {
@@ -908,7 +914,14 @@ CRef Solver::propagate() {
     NextClause:;
     }
     ws.shrink(i - j);
+    sjqrusttools::satstat_add_watcher(this_stat, total_clause,
+                                      total_clause_read);
   } // end while (qhead < trail.size())
+  if (confl == CRef_Undef) {
+    sjqrusttools::end_decision(this_stat, false);
+  } else {
+    sjqrusttools::end_decision(this_stat, true);
+  }
 #ifndef REAL_CPU_TIME
   // normally end
 #ifdef HISTO
@@ -1176,6 +1189,7 @@ lbool Solver::search(int) {
     throw;
   this_wrap = sjqrusttools::create_empty_task();
   this_sim = sjqrusttools::get_simulator();
+  this_stat = sjqrusttools::new_satstat_pointer();
 #ifdef REAL_CPU_TIME
 
   static nanoseconds total_time_in_bcp(0);
