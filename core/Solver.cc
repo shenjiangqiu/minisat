@@ -969,6 +969,8 @@ CRef Solver::propagate() {
         throw;
       }
       auto result = sjqrusttools::finish_simulator(this_wrap, this_sim);
+      sjqrusttools::show_data(this_stat);
+      sjqrusttools::delete_satstat_pointer(this_stat);
       if (!result) {
         std::cout << "error, finish_simulator failed" << std::endl;
         exit(-1);
