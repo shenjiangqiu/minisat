@@ -720,6 +720,7 @@ CRef Solver::propagate() {
     std::cout << "origin_clause_size: " << start_size << std::endl;
     std::cout << "origin_clause_num: " << clauses.size() << std::endl;
     std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+    std::cout << "end_prop" << end_prop << std::endl;
   }
 
   if (total_prop >= (unsigned long long)end_prop - 1) {
@@ -750,6 +751,7 @@ CRef Solver::propagate() {
       std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
     }
     sjqrusttools::show_data(this_stat);
+    sjqrusttools::save_data(this_stat);
     sjqrusttools::delete_satstat_pointer(this_stat);
 
     exit(0);
@@ -892,6 +894,7 @@ lbool Solver::search(int) {
 #endif
   std::cout << propagations << std::endl;
   std::cout << end_prop << std::endl;
+  std::cout << opt_end_prop << std::endl;
   assert(ok);
   static bool first_in = true;
   if (!opt_load) {
