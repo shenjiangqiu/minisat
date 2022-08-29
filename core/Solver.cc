@@ -749,6 +749,8 @@ CRef Solver::propagate() {
       std::cout << "origin_clause_size: " << start_size << std::endl;
       std::cout << "origin_clause_num: " << clauses.size() << std::endl;
       std::cout << "learnt_clasue_num: " << learnts.size() << std::endl;
+      delete this_sim;
+      delete this_wrap;
     }
     this_stat->show_data();
     this_stat->save_data();
