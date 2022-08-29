@@ -571,7 +571,7 @@ CRef Solver::propagate() {
   CRef confl = CRef_Undef;
   int num_props = 0;
   watches.cleanAll();
-
+  int current_level = 0;
   int next_level = qhead + 1;
 
   if (finished_init and finished_warmup and opt_enable_acc) {
@@ -586,7 +586,7 @@ CRef Solver::propagate() {
 
     if (finished_init and finished_warmup)
       if (qhead == next_level) {
-
+        current_level += 1;
         next_level = trail.size();
       }
 
@@ -597,7 +597,8 @@ CRef Solver::propagate() {
       continue;
     }
     if (opt_enable_acc && finished_init and finished_warmup) {
-      this_wrap->add_watcher_task((uint64_t)&ws, (uint64_t)(Watcher *)ws, p.x);
+      this_wrap->add_watcher_task(current_level, (uint64_t)&ws,
+                                  (uint64_t)(Watcher *)ws, p.x);
     }
 
     Watcher *i, *j, *end;
